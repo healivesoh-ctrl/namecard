@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NFC 명함 태그 기록 도구</title>
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+  :root{
+    --ink:#111826; --paper:#fbfaf7; --card:#fff; --line:#e6e2d9;
+    --accent:#0e6f6e; --accent-soft:#e3f0ef; --muted:#6b7280;
+    --warn:#b45309; --warn-soft:#fef3e2;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:"Pretendard Variable",Pretendard,system-ui,sans-serif;
+    background:var(--paper);color:var(--ink);
+    padding:28px 16px 48px;display:flex;justify-content:center;
+  }
+  .wrap{width:100%;max-width:440px;}
+  h1{font-size:21px;font-weight:800;margin-bottom:4px;}
+  .sub{font-size:13.5px;color:var(--muted);margin-bottom:22px;line-height:1.5;}
+
+  .tabs{display:flex;gap:6px;margin-bottom:16px;}
+  .tab{
+    flex:1;padding:11px;border-radius:12px;border:1px solid var(--line);
+    background:var(--card);font-family:inherit;font-size:14px;font-weight:600;
+    color:var(--muted);cursor:pointer;
+  }
+  .tab.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;}
+  label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:14px 0 5px;}
+  label:first-child{margin-top:0;}
+  input{
+    width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:11px;
+    font-family:inherit;font-size:15px;background:var(--paper);
+  }
+  input:focus{outline:2px solid var(--accent);outline-offset:-1px;}
+
+  .cap{
+    margin-top:14px;padding:11px 13px;border-radius:11px;
+    background:var(--accent-soft);font-size:12.5px;line-height:1.55;color:var(--ink);
+  }
+  .cap.warn{background:var(--warn-soft);color:var(--warn);}
+  .cap b{font-weight:700;}
+
+  .write{
+    margin-top:18px;width:100%;padding:15px;border:0;border-radius:13px;
+    background:var(--accent);color:#fff;font-family:inherit;
+    font-size:16px;font-weight:700;cursor:pointer;
+  }
+  .write:disabled{opacity:.5;cursor:default;}
+
+  #status{
+    margin-top:14px;font-size:14px;font-weight:600;text-align:center;
+    min-height:22px;color:var(--muted);
+  }
+  #status.ok{color:var(--accent);}
+  #status.err{color:#b91c1c;}
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>NFC 명함 태그 기록</h1>
+  <p class="sub">Android Chrome에서 열고, 기록 버튼을 누른 뒤 NFC 태그를 폰 뒷면에 대세요.<br/>(Web NFC는 Android Chrome 89+ · HTTPS에서만 동작합니다)</p>
+
+  <div class="tabs">
+    <button class="tab on" id="tabUrl">URL 방식 (권장)</button>
+    <button class="tab" id="tabVcf">vCard 직접 기록</button>
+  </div>
+
+  <!-- URL 방식 -->
+  <div class="panel" id="panelUrl">
+    <label>명함 페이지 주소</label>
+    <input id="url" type="url" placeholder="https://card.example.com/hong" value="" />
+    <div class="cap">
+      태그를 탭하면 이 주소가 열립니다. <b>사진 포함 명함</b>은 이 방식을 쓰세요.
+      NTAG213(144B)에도 충분히 들어갑니다. iPhone XS 이상은 잠금화면에서도 자동 인식됩니다.
+    </div>
+    <button class="write" id="writeUrl">태그에 기록하기</button>
+  </div>
+
+  <!-- vCard 직접 기록 -->
+  <div class="panel hidden" id="panelVcf">
+    <label>성명</label>        <input id="v_name"  placeholder="홍길동" />
+    <label>소속</label>        <input id="v_org"   placeholder="㈜디에이블" />
+    <label>직책</label>        <input id="v_title" placeholder="대표이사" />
+    <label>휴대전화</label>    <input id="v_tel"   placeholder="010-0000-0000" />
+    <label>이메일</label>      <input id="v_email" placeholder="hello@example.com" />
+    <div class="cap warn">
+      태그를 탭하면 바로 <b>연락처 추가 화면</b>이 뜹니다(Android).
+      단, 태그 용량 한계로 <b>사진은 포함할 수 없습니다.</b>
+      텍스트만으로도 200~300바이트가 되므로 <b>NTAG215/216</b> 태그를 권장합니다.
+      iPhone은 vCard 태그를 기본 지원하지 않는 경우가 있어, 아이폰 대응이 필요하면 URL 방식을 쓰세요.
+    </div>
+    <div class="cap" id="sizeInfo">예상 용량: — bytes</div>
+    <button class="write" id="writeVcf">태그에 기록하기</button>
+  </div>
+
+  <p id="status"></p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const status = (msg, cls="") => { $("status").textContent = msg; $("status").className = cls; };
+
+/* 탭 전환 */
+$("tabUrl").onclick = ()=>{ toggle(true); };
+$("tabVcf").onclick = ()=>{ toggle(false); };
+function toggle(url){
+  $("tabUrl").classList.toggle("on", url);
+  $("tabVcf").classList.toggle("on", !url);
+  $("panelUrl").classList.toggle("hidden", !url);
+  $("panelVcf").classList.toggle("hidden", url);
+  status("");
+}
+
+/* vCard 문자열 생성 (사진 없이 — 태그 직접 기록용) */
+function makeVcf(){
+  const name  = $("v_name").value.trim();
+  const org   = $("v_org").value.trim();
+  const title = $("v_title").value.trim();
+  const tel   = $("v_tel").value.trim();
+  const email = $("v_email").value.trim();
+  return [
+    "BEGIN:VCARD","VERSION:3.0",
+    `N;CHARSET=UTF-8:${name};;;;`,
+    `FN;CHARSET=UTF-8:${name}`,
+    org   && `ORG;CHARSET=UTF-8:${org}`,
+    title && `TITLE;CHARSET=UTF-8:${title}`,
+    tel   && `TEL;TYPE=CELL:${tel}`,
+    email && `EMAIL;TYPE=INTERNET:${email}`,
+    "END:VCARD"
+  ].filter(Boolean).join("\r\n");
+}
+
+/* 용량 표시 */
+["v_name","v_org","v_title","v_tel","v_email"].forEach(id=>{
+  $(id).addEventListener("input", ()=>{
+    const bytes = new TextEncoder().encode(makeVcf()).length;
+    $("sizeInfo").textContent =
+      `예상 용량: ${bytes} bytes ` +
+      (bytes <= 130 ? "(NTAG213 가능)" : bytes <= 480 ? "(NTAG215 이상 권장)" : "(NTAG216 필요)");
+  });
+});
+
+/* Web NFC 기록 */
+async function writeTag(records){
+  if (!("NDEFReader" in window)){
+    status("이 브라우저는 Web NFC를 지원하지 않습니다. Android Chrome에서 열어주세요.", "err");
+    return;
+  }
+  try{
+    status("태그를 폰 뒷면에 대세요…");
+    const ndef = new NDEFReader();
+    await ndef.write({ records });
+    status("✓ 기록 완료! 태그를 다른 폰에 대서 확인해 보세요.", "ok");
+  }catch(e){
+    status("기록 실패: " + e.message, "err");
+  }
+}
+
+$("writeUrl").onclick = ()=>{
+  const url = $("url").value.trim();
+  if (!/^https?:\/\//.test(url)) { status("https:// 로 시작하는 주소를 입력하세요.", "err"); return; }
+  writeTag([{ recordType:"url", data:url }]);
+};
+
+$("writeVcf").onclick = ()=>{
+  if (!$("v_name").value.trim()) { status("성명을 입력하세요.", "err"); return; }
+  const bytes = new TextEncoder().encode(makeVcf());
+  writeTag([{ recordType:"mime", mediaType:"text/vcard", data:bytes }]);
+};
+</script>
+</body>
+</html>
