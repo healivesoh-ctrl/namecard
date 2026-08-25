@@ -65,6 +65,7 @@
     color:var(--accent);margin-bottom:5px;line-height:1.35;
   }
   .name{font-size:23px;font-weight:800;letter-spacing:-.01em;}
+  .name .role{font-size:16px;font-weight:700;color:var(--accent);margin-left:7px;letter-spacing:0;}
   .title{font-size:14px;color:var(--muted);margin-top:3px;margin-bottom:16px;}
 
   .divider{height:1px;background:var(--line);margin:0 -20px 16px;}
@@ -181,7 +182,8 @@ const CARD = {
   lastName : "박",                       // 성
   firstName: "정선",                     // 이름
   org      : "대한간호협회 서울시간호사회",  // 소속
-  title    : "회장 (현 서울특별시보라매병원 간호부장)", // 직책
+  role     : "회장",                       // 이름 옆 직함
+  title    : "현 서울특별시보라매병원 간호부장", // 직책 (이름 아래)
   cell     : "010-3479-0344",            // 휴대전화
   email    : "",                         // 이메일 (없으면 "")
   website  : "",                         // 웹사이트 (없으면 "")
@@ -211,7 +213,14 @@ const CARD = {
 const fullName = CARD.lastName + CARD.firstName;
 document.title = `${fullName} | ${CARD.org}`;
 document.getElementById("org").textContent   = CARD.org;
-document.getElementById("name").textContent  = fullName;
+const nameEl = document.getElementById("name");
+nameEl.textContent = fullName;
+if (CARD.role) {
+  const r = document.createElement("span");
+  r.className = "role";
+  r.textContent = CARD.role;
+  nameEl.appendChild(r);
+}
 document.getElementById("title").textContent = CARD.title;
 document.getElementById("tel").textContent   = CARD.cell;
 document.getElementById("row-tel").href      = "tel:" + CARD.cell.replace(/-/g,"");
@@ -305,7 +314,8 @@ async function buildVCard(){
   L.push(`N;CHARSET=UTF-8:${CARD.lastName};${CARD.firstName};;;`);
   L.push(`FN;CHARSET=UTF-8:${fullName}`);
   if (CARD.org)   L.push(`ORG;CHARSET=UTF-8:${CARD.org}`);
-  if (CARD.title) L.push(`TITLE;CHARSET=UTF-8:${CARD.title}`);
+  const vTitle = (CARD.role && CARD.title) ? `${CARD.role} (${CARD.title})` : (CARD.role || CARD.title);
+  if (vTitle)     L.push(`TITLE;CHARSET=UTF-8:${vTitle}`);
   if (CARD.cell)  L.push(`TEL;TYPE=CELL:${CARD.cell}`);
   if (CARD.email) L.push(`EMAIL;TYPE=INTERNET:${CARD.email}`);
   if (CARD.website) L.push(`URL:${CARD.website}`);
