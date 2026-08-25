@@ -307,6 +307,11 @@ function fold(line){
 // vCard 값 이스케이프 (쉼표·세미콜론·줄바꿈)
 function esc(v){ return String(v).replace(/([,;\\])/g,"\\$1").replace(/\n/g,"\\n"); }
 
+/* 연락처(vCard) 저장 범위 설정
+   false: 이름·소속·전화·사진만 저장 (개인정보 최소화 — 기본값)
+   true : 직책·학력·주요경력까지 함께 저장 */
+const VCARD_INCLUDE_DETAILS = false;
+
 async function buildVCard(){
   const L = [];
   L.push("BEGIN:VCARD");
@@ -314,20 +319,23 @@ async function buildVCard(){
   L.push(`N;CHARSET=UTF-8:${CARD.lastName};${CARD.firstName};;;`);
   L.push(`FN;CHARSET=UTF-8:${fullName}`);
   if (CARD.org)   L.push(`ORG;CHARSET=UTF-8:${CARD.org}`);
-  const vTitle = (CARD.role && CARD.title) ? `${CARD.role} (${CARD.title})` : (CARD.role || CARD.title);
-  if (vTitle)     L.push(`TITLE;CHARSET=UTF-8:${vTitle}`);
   if (CARD.cell)  L.push(`TEL;TYPE=CELL:${CARD.cell}`);
   if (CARD.email) L.push(`EMAIL;TYPE=INTERNET:${CARD.email}`);
-  if (CARD.website) L.push(`URL:${CARD.website}`);
 
-  // 학력·경력을 메모(NOTE)에 담기
-  const noteParts = [];
-  if (CARD.education && CARD.education.length)
-    noteParts.push("[학력]\n" + CARD.education.map(e => "· " + e).join("\n"));
-  if (CARD.career && CARD.career.length)
-    noteParts.push("[주요경력]\n" + CARD.career.map(c => `· ${c.period}  ${c.desc}`).join("\n"));
-  if (noteParts.length)
-    L.push(fold(`NOTE;CHARSET=UTF-8:${esc(noteParts.join("\n\n"))}`));
+  if (VCARD_INCLUDE_DETAILS) {
+    // 직책
+    const vTitle = (CARD.role && CARD.title) ? `${CARD.role} (${CARD.title})` : (CARD.role || CARD.title);
+    if (vTitle)       L.push(`TITLE;CHARSET=UTF-8:${vTitle}`);
+    if (CARD.website) L.push(`URL:${CARD.website}`);
+    // 학력·경력을 메모(NOTE)에 담기
+    const noteParts = [];
+    if (CARD.education && CARD.education.length)
+      noteParts.push("[학력]\n" + CARD.education.map(e => "· " + e).join("\n"));
+    if (CARD.career && CARD.career.length)
+      noteParts.push("[주요경력]\n" + CARD.career.map(c => `· ${c.period}  ${c.desc}`).join("\n"));
+    if (noteParts.length)
+      L.push(fold(`NOTE;CHARSET=UTF-8:${esc(noteParts.join("\n\n"))}`));
+  }
 
   const photo = CARD.photoUrl ? await photoToBase64(CARD.photoUrl) : null;
   if (photo) L.push(fold(`PHOTO;ENCODING=b;TYPE=${photo.type}:${photo.b64}`));
