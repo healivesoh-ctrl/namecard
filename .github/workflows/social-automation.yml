@@ -1,0 +1,90 @@
+name: SNS 자동 콘텐츠 생성·업로드
+
+on:
+  schedule:
+    # 매일 09:00 KST (00:00 UTC)
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "주제 (비우면 config topics 큐에서 자동 선택)"
+        required: false
+      dry_run:
+        description: "dry-run (실제 업로드 안 함)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  generate-and-upload:
+    runs-on: ubuntu-latest
+    # 스케줄 실행은 기본 브랜치의 워크플로만 동작하므로,
+    # 이 브랜치를 머지한 뒤부터 cron 이 활성화된다.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 의존성 설치 (업로드는 Instagram API만 — Playwright 불필요)
+        working-directory: social-automation
+        run: pip install anthropic requests PyYAML Pillow python-dotenv
+
+      - name: 설정 파일 준비
+        working-directory: social-automation
+        run: |
+          if [ ! -f config.yaml ]; then cp config.example.yaml config.yaml; fi
+
+      - name: 한글 폰트 설치 (카드 이미지용)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+
+      - name: 콘텐츠 생성
+        working-directory: social-automation
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "${{ inputs.topic }}" ]; then
+            python -m sns.cli generate --topic "${{ inputs.topic }}"
+          else
+            python -m sns.cli generate --auto
+          fi
+
+      - name: 초안 커밋·푸시 (Instagram이 이미지 공개 URL을 읽을 수 있도록 선행)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add social-automation/drafts
+          git diff --cached --quiet || git commit -m "chore: SNS 콘텐츠 초안 자동 생성"
+          git push
+
+      - name: Instagram 업로드
+        if: ${{ !inputs.dry_run }}
+        working-directory: social-automation
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IMAGE_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/social-automation
+        run: |
+          if [ -z "$IG_ACCESS_TOKEN" ]; then
+            echo "IG_ACCESS_TOKEN 시크릿이 없어 Instagram 업로드를 건너뜁니다."
+            exit 0
+          fi
+          SLUG=$(python -m sns.cli list | tail -1 | awk '{print $1}')
+          python -m sns.cli upload "$SLUG" --platforms instagram
+
+      - name: 업로드 상태 커밋
+        if: ${{ always() }}
+        run: |
+          git add social-automation/drafts
+          git diff --cached --quiet || git commit -m "chore: SNS 업로드 상태 갱신"
+          git push
+
+      - name: 초안 아카이브 업로드 (샤오홍슈·네이버 수동/로컬 업로드용)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sns-drafts
+          path: social-automation/drafts
+          if-no-files-found: ignore

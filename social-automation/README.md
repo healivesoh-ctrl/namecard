@@ -1,0 +1,121 @@
+# SNS 자동화 콘텐츠 생성·업로드 시스템
+
+주제 하나를 넣으면 **인스타그램 · 샤오홍슈(小红书) · 네이버블로그** 각각의 문법에 맞는
+콘텐츠(캡션/제목/본문/해시태그)와 카드 이미지를 Claude API로 자동 생성하고,
+플랫폼별로 업로드까지 수행하는 파이프라인입니다.
+
+```
+주제(topic)
+   │  Claude API (플랫폼별 스타일 동시 생성)
+   ▼
+drafts/<날짜>-<주제>/          ← 초안 (검수 가능)
+   ├─ post.json                ← 전체 데이터 + 업로드 상태
+   ├─ card-01.jpg              ← 자동 생성 카드 이미지 (1080×1080)
+   ├─ instagram.txt / xiaohongshu.txt / naver_blog.txt
+   ▼
+업로드
+   ├─ instagram   → 공식 Instagram Graph API
+   ├─ xiaohongshu → Playwright 브라우저 자동화 (크리에이터 센터)
+   └─ naver_blog  → Playwright 브라우저 자동화 (스마트에디터 ONE)
+```
+
+## 1. 설치
+
+```bash
+cd social-automation
+pip install -r requirements.txt
+playwright install chromium        # 샤오홍슈·네이버 업로드용 (Instagram만 쓰면 생략 가능)
+
+cp config.example.yaml config.yaml # 브랜드·주제·플랫폼 설정 수정
+cp .env.example .env               # API 키 입력
+```
+
+`config.yaml` — 브랜드 소개·톤앤매너·타깃, 주제 큐(topics), 플랫폼별 옵션(해시태그 수,
+언어, 최소 글자 수), 카드 이미지 색상을 설정합니다.
+
+`.env` — `ANTHROPIC_API_KEY`(필수), Instagram용 `IG_ACCESS_TOKEN`/`IG_USER_ID`/`IMAGE_BASE_URL`.
+
+## 2. 사용법
+
+```bash
+# 콘텐츠 생성 (초안만 만들고 업로드는 하지 않음 → 검수 후 업로드 권장)
+python -m sns.cli generate --topic "NFC 명함에 프로필 사진까지 담는 방법"
+python -m sns.cli generate --auto            # config topics 큐에서 아직 안 쓴 주제 자동 선택
+
+python -m sns.cli list                       # 초안 목록 + 업로드 상태
+python -m sns.cli preview <slug>             # 초안 내용 확인
+
+# 업로드 (--dry-run 으로 먼저 리허설 가능)
+python -m sns.cli upload <slug> --platforms instagram,xiaohongshu,naver_blog --dry-run
+python -m sns.cli upload <slug> --platforms instagram
+
+# 생성+업로드 한 번에 (cron/CI용)
+python -m sns.cli run --auto --platforms instagram
+```
+
+## 3. 플랫폼별 준비
+
+### Instagram (공식 Graph API — 완전 무인 자동화 가능)
+
+1. Instagram을 **프로페셔널 계정**(비즈니스/크리에이터)으로 전환하고 Facebook 페이지와 연결
+2. [Meta 개발자](https://developers.facebook.com)에서 앱 생성 →
+   `instagram_basic`, `instagram_content_publish`, `pages_read_engagement` 권한의
+   **장기 액세스 토큰** 발급
+3. `.env`에 `IG_ACCESS_TOKEN`, `IG_USER_ID`(Instagram Business Account ID) 입력
+4. Graph API는 **공개 이미지 URL**만 받으므로, `drafts/`를 GitHub에 push한 뒤
+   `IMAGE_BASE_URL=https://raw.githubusercontent.com/<owner>/<repo>/<branch>/social-automation`
+   형태로 설정 (GitHub Actions 워크플로는 이를 자동 처리)
+
+### 샤오홍슈 (브라우저 자동화)
+
+공식 게시 API가 일반 사업자에게 열려 있지 않아, 본인 계정으로 로그인한 브라우저
+세션을 재사용합니다.
+
+```bash
+python -m sns.uploaders.login xiaohongshu   # 브라우저에서 직접 로그인 → 세션 저장
+python -m sns.cli upload <slug> --platforms xiaohongshu
+```
+
+- 로그인 1회 후 `sessions/xiaohongshu.json`에 세션이 저장되어 재사용됩니다 (커밋 금지, .gitignore 처리됨)
+- **과도한 자동 게시는 계정 제재 위험**이 있으니 하루 1~2건 수준을 권장합니다
+- UI 개편으로 실패하면 `sns/uploaders/xiaohongshu.py` 상단의 셀렉터 상수만 수정하면 됩니다
+  (실패 시 `drafts/<slug>/error-xiaohongshu.png` 스크린샷 자동 저장)
+
+### 네이버블로그 (브라우저 자동화)
+
+네이버는 블로그 글쓰기 공식 API를 종료했으므로 같은 방식을 사용합니다.
+
+```bash
+python -m sns.uploaders.login naver         # 자동입력방지 때문에 로그인은 사람이 직접
+python -m sns.cli upload <slug> --platforms naver_blog
+```
+
+- 스마트에디터 ONE(iframe) 기준. 셀렉터는 `sns/uploaders/naver_blog.py` 상단 상수 참고
+- 현재는 텍스트+태그 게시(이미지 첨부는 에디터의 OS 파일창 때문에 수동 권장)
+
+## 4. 스케줄 자동화
+
+### GitHub Actions (권장)
+
+`.github/workflows/social-automation.yml` 이 포함되어 있습니다.
+
+- 매일 09:00 KST에 자동 실행: 콘텐츠 생성 → 초안 커밋 → Instagram 업로드
+- 수동 실행(workflow_dispatch)에서 주제 직접 지정 / dry-run 가능
+- 리포지토리 **Settings → Secrets**에 등록: `ANTHROPIC_API_KEY`, `IG_ACCESS_TOKEN`, `IG_USER_ID`
+- 샤오홍슈·네이버는 로그인 세션이 필요해 CI에서는 실행하지 않고, 초안을
+  Actions 아티팩트로 받아 로컬에서 `upload` 명령으로 게시합니다
+- cron은 **기본 브랜치에 머지된 뒤**부터 동작합니다
+
+### 로컬 cron
+
+```cron
+0 9 * * * cd /path/to/namecard/social-automation && python -m sns.cli run --auto >> sns.log 2>&1
+```
+
+## 5. 주의사항
+
+- 샤오홍슈·네이버 자동화는 각 플랫폼 약관상 제한될 수 있는 영역입니다.
+  **본인 계정, 저빈도, 검수 후 게시**를 전제로 사용하세요.
+- 생성된 콘텐츠는 업로드 전 `preview` 로 반드시 검수하는 워크플로를 권장합니다
+  (generate 와 upload 가 분리되어 있는 이유입니다).
+- `.env` 와 `sessions/` 는 절대 커밋하지 마세요 (.gitignore에 등록됨).

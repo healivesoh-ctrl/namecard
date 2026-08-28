@@ -1,0 +1,46 @@
+# 이 파일을 config.yaml 로 복사한 뒤 브랜드에 맞게 수정하세요.
+# (config.yaml 은 .gitignore 대상이 아니므로, 비밀값은 .env 에만 넣습니다)
+
+brand:
+  name: "㈜디에이블"
+  description: "NFC 디지털 명함 솔루션을 만드는 회사. 폰을 태그에 대면 명함이 연락처로 저장되는 서비스를 제공."
+  tone: "친근하고 전문적인 톤. 과장 없이 실용적인 정보 중심."
+  audience: "명함을 자주 주고받는 직장인, 영업/마케팅 담당자, 소상공인"
+  website: "https://example.com"
+
+# 콘텐츠 생성에 사용할 Claude 모델
+model: "claude-opus-5"
+
+# 자동 모드(generate --auto)에서 순서대로 소진되는 주제 큐
+topics:
+  - "종이 명함 vs NFC 디지털 명함, 무엇이 다를까"
+  - "네트워킹 행사에서 명함 대신 폰을 내미는 사람들"
+  - "NFC 명함에 프로필 사진까지 담는 방법"
+  - "명함 재인쇄 비용, 1년에 얼마나 쓰고 계신가요"
+  - "아이폰에서도 되나요? NFC 명함 호환성 총정리"
+
+platforms:
+  instagram:
+    enabled: true
+    language: "ko"
+    hashtag_count: 15          # 캡션에 붙일 해시태그 개수
+  xiaohongshu:
+    enabled: true
+    language: "zh"             # 샤오홍슈는 중국어 콘텐츠 기본
+    tag_count: 8
+  naver_blog:
+    enabled: true
+    language: "ko"
+    min_chars: 1500            # 블로그 본문 최소 글자 수(SEO)
+    tag_count: 10
+
+image:
+  # 카드 이미지에 쓸 한글/중문 폰트 경로 (비우면 시스템에서 자동 탐색)
+  font_path: ""
+  # 배경 그라데이션 색상 (위 → 아래)
+  color_top: "#4F46E5"
+  color_bottom: "#0EA5E9"
+
+paths:
+  drafts: "drafts"     # 생성된 초안 저장 위치 (social-automation/ 기준 상대경로)
+  sessions: "sessions" # Playwright 로그인 세션 저장 위치

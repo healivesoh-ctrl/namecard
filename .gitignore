@@ -1,1 +1,7 @@
 .vercel
+
+# social-automation: 비밀값·로그인 세션은 절대 커밋 금지
+social-automation/.env
+social-automation/sessions/
+__pycache__/
+*.pyc
