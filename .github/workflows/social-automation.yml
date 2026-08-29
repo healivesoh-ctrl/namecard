@@ -42,10 +42,17 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
 
       - name: 콘텐츠 생성
+        id: generate
         working-directory: social-automation
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::ANTHROPIC_API_KEY 시크릿이 아직 등록되지 않아 이번 실행은 건너뜁니다."
+            echo "리포지토리 Settings → Secrets and variables → Actions 에서 등록하세요."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -n "${{ inputs.topic }}" ]; then
             python -m sns.cli generate --topic "${{ inputs.topic }}"
           else
@@ -53,6 +60,7 @@ jobs:
           fi
 
       - name: 초안 커밋·푸시 (Instagram이 이미지 공개 URL을 읽을 수 있도록 선행)
+        if: ${{ steps.generate.outputs.skipped != 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -61,7 +69,7 @@ jobs:
           git push
 
       - name: Instagram 업로드
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && steps.generate.outputs.skipped != 'true' }}
         working-directory: social-automation
         env:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
@@ -76,7 +84,7 @@ jobs:
           python -m sns.cli upload "$SLUG" --platforms instagram
 
       - name: 업로드 상태 커밋
-        if: ${{ always() }}
+        if: ${{ always() && steps.generate.outputs.skipped != 'true' }}
         run: |
           git add social-automation/drafts
           git diff --cached --quiet || git commit -m "chore: SNS 업로드 상태 갱신"
