@@ -302,13 +302,15 @@ class ContentUpdate(BaseModel):
 
 
 class DraftUpdateBody(BaseModel):
-    contents: dict[str, ContentUpdate]
+    contents: dict[str, ContentUpdate] = {}
+    # platform -> "draft" | "approved" (자동 발행 승인 토글)
+    status: dict[str, str] = {}
 
 
 @app.put("/api/drafts/{slug}")
 def update_draft(slug: str, body: DraftUpdateBody,
                  x_admin_password: str | None = Header(default=None)):
-    """대시보드에서 편집한 제목/본문/해시태그 저장."""
+    """대시보드에서 편집한 제목/본문/해시태그·승인 상태 저장."""
     _check_password(x_admin_password)
     post = _load_post(slug)
     for platform, upd in body.contents.items():
@@ -318,6 +320,12 @@ def update_draft(slug: str, body: DraftUpdateBody,
         c.title = upd.title
         c.body = upd.body
         c.hashtags = [t.lstrip("#").strip() for t in upd.hashtags if t.strip()]
+    for platform, st in body.status.items():
+        if platform not in post.contents:
+            raise HTTPException(400, f"알 수 없는 플랫폼: {platform}")
+        if st not in ("draft", "approved"):
+            raise HTTPException(400, f"상태는 draft/approved 만 가능합니다: {st}")
+        post.status[platform] = st
     files = {"post.json": post.to_json().encode()}
     files.update(_draft_text_files(post))
     storage = _save_draft_files(slug, files, f"edit: 콘텐츠 수정 ({slug})")

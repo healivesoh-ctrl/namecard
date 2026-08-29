@@ -73,6 +73,7 @@
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .chip { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
   .chip.draft    { background: var(--gray-soft); color: var(--muted); }
+  .chip.approved { background: var(--accent-soft); color: var(--accent); }
   .chip.uploaded { background: var(--green-soft); color: var(--green); }
   .chip.failed   { background: var(--red-soft); color: var(--red); }
 
@@ -171,7 +172,7 @@
   <div class="panel hidden" id="importPanel">
     <h2>📥 클로드에서 콘텐츠 가져오기 (추가 요금 없음)</h2>
     <div class="row" style="margin-bottom:10px">
-      <input type="text" id="importTopic" placeholder="주제 입력 — 예: NFC 명함에 프로필 사진까지 담는 방법">
+      <input type="text" id="importTopic" placeholder="주제 입력 — 여러 개는 쉼표로 구분: 주제1, 주제2, 주제3">
       <button id="btnCopyPrompt">1️⃣ 프롬프트 복사</button>
     </div>
     <div class="hint" style="margin:0 0 10px">복사한 프롬프트를 평소 쓰는 <b>claude.ai 채팅</b>에 붙여넣고,
@@ -333,7 +334,47 @@ function makeCardBase64(headline, subline, colorTop, colorBottom) {
 }
 
 /* ── claude.ai 붙여넣기용 프롬프트 ─────────────────────── */
-function buildGenPrompt(topic) {
+function splitTopics(raw) {
+  return raw.split(/[,\n]/).map(t => t.trim()).filter(Boolean);
+}
+
+function buildGenPrompt(topicRaw) {
+  const topics = splitTopics(topicRaw);
+  if (topics.length > 1) return buildGenPromptMulti(topics);
+  return buildGenPromptOne(topics[0] || topicRaw);
+}
+
+function buildGenPromptMulti(topics) {
+  return `당신은 멀티플랫폼 SNS 콘텐츠 전문가입니다. 아래 ${topics.length}개 주제 각각에 대해 인스타그램·샤오홍슈(小红书)·네이버블로그 콘텐츠를 만들어 주세요.
+
+브랜드 정보:
+- 이름: ${BRAND.name}
+- 소개: ${BRAND.description}
+- 톤앤매너: ${BRAND.tone}
+- 타깃 독자: ${BRAND.audience}
+
+주제 목록:
+${topics.map((t, i) => `${i + 1}. ${t}`).join("\n")}
+
+플랫폼별 규칙:
+- instagram: 첫 줄 훅으로 시작하는 한국어 캡션, 줄바꿈 활용, 이모지 적당히. 캡션에 해시태그 넣지 말 것(배열로 별도). 해시태그 15개(한국어+영어, '#' 제외).
+- xiaohongshu: 중국어(简体). 제목 20자 이내+이모지 1~2개. 본문은 소홍서 특유의 구어체, 줄마다 짧게, ✅❗💡 활용. 태그 8개(중국어, '#' 제외).
+- naver_blog: 한국어 장문 정보성 포스트 1500자 이상. 제목에 핵심 키워드. 본문은 "## 소제목"으로 구획. 태그 10개.
+- 과장 광고 문구(최고, 1위 등) 금지.
+
+반드시 아래 JSON 배열 형식으로만 답하세요(주제당 1개 원소, 순서 유지). JSON 외의 설명을 붙이지 마세요.
+[
+  {
+    "topic": "주제 원문 그대로",
+    "instagram":   {"caption": "...", "hashtags": ["태그1", "..."]},
+    "xiaohongshu": {"title": "...", "body": "...", "tags": ["标签1", "..."]},
+    "naver_blog":  {"title": "...", "body": "...", "tags": ["태그1", "..."]},
+    "image_text":  {"headline": "카드 이미지용 한 줄(15자 이내)", "subline": "보조 문구(25자 이내)"}
+  }
+]`;
+}
+
+function buildGenPromptOne(topic) {
   return `당신은 멀티플랫폼 SNS 콘텐츠 전문가입니다. 아래 주제로 인스타그램·샤오홍슈(小红书)·네이버블로그 콘텐츠를 만들어 주세요.
 
 브랜드 정보:
@@ -382,49 +423,64 @@ function slugifyJs(text) {
 }
 
 function extractJson(text) {
-  const s = text.indexOf("{"), e = text.lastIndexOf("}");
+  const o = text.indexOf("{"), a = text.indexOf("[");
+  let s, e;
+  if (a !== -1 && (o === -1 || a < o)) { s = a; e = text.lastIndexOf("]"); }
+  else { s = o; e = text.lastIndexOf("}"); }
   if (s === -1 || e <= s) throw new Error("붙여넣은 내용에서 JSON을 찾지 못했습니다");
   return JSON.parse(text.slice(s, e + 1));
 }
 
-/* ── 가져오기 (claude.ai 답변 → 초안 등록) ─────────────── */
+/* ── 가져오기 (claude.ai 답변 → 초안 등록, 다건 지원) ─── */
+async function registerDraft(topic, data) {
+  const today = new Date().toISOString().slice(0, 10);
+  const slug = `${today}-${slugifyJs(topic)}`;
+  const it = data.image_text || {};
+  const d = {
+    topic, slug,
+    created_at: new Date().toISOString().slice(0, 19),
+    images: ["card-01.jpg"],
+    contents: {
+      instagram: { platform: "instagram", title: "",
+        body: (data.instagram || {}).caption || "", hashtags: (data.instagram || {}).hashtags || [] },
+      xiaohongshu: { platform: "xiaohongshu", title: (data.xiaohongshu || {}).title || "",
+        body: (data.xiaohongshu || {}).body || "", hashtags: (data.xiaohongshu || {}).tags || [] },
+      naver_blog: { platform: "naver_blog", title: (data.naver_blog || {}).title || "",
+        body: (data.naver_blog || {}).body || "", hashtags: (data.naver_blog || {}).tags || [] },
+    },
+    status: { instagram: "draft", xiaohongshu: "draft", naver_blog: "draft" },
+    image_text: { headline: it.headline || topic.slice(0, 15), subline: it.subline || "" },
+  };
+  const card = makeCardBase64(d.image_text.headline, d.image_text.subline);
+  const files = { "post.json": b64utf8(JSON.stringify(d, null, 2)), "card-01.jpg": card, ...draftTextFiles(d) };
+  await ghSaveDraft(d, files, `content: 클로드 가져오기 (${slug})`);
+  return d;
+}
+
 async function importFromClaude() {
   const btn = $("btnImport");
-  const topic = $("importTopic").value.trim();
+  const topicRaw = $("importTopic").value.trim();
   const raw = $("importJson").value.trim();
-  if (!topic) return toast("주제를 입력하세요 (1️⃣ 프롬프트 복사에 쓴 주제)");
+  if (!topicRaw) return toast("주제를 입력하세요 (1️⃣ 프롬프트 복사에 쓴 주제)");
   if (!raw) return toast("Claude 답변(JSON)을 붙여넣으세요");
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 등록 중...';
   $("importStatus").textContent = "";
   try {
     const data = extractJson(raw);
-    const today = new Date().toISOString().slice(0, 10);
-    const slug = `${today}-${slugifyJs(topic)}`;
-    const it = data.image_text || {};
-    const d = {
-      topic, slug,
-      created_at: new Date().toISOString().slice(0, 19),
-      images: ["card-01.jpg"],
-      contents: {
-        instagram: { platform: "instagram", title: "",
-          body: (data.instagram || {}).caption || "", hashtags: (data.instagram || {}).hashtags || [] },
-        xiaohongshu: { platform: "xiaohongshu", title: (data.xiaohongshu || {}).title || "",
-          body: (data.xiaohongshu || {}).body || "", hashtags: (data.xiaohongshu || {}).tags || [] },
-        naver_blog: { platform: "naver_blog", title: (data.naver_blog || {}).title || "",
-          body: (data.naver_blog || {}).body || "", hashtags: (data.naver_blog || {}).tags || [] },
-      },
-      status: { instagram: "draft", xiaohongshu: "draft", naver_blog: "draft" },
-      image_text: { headline: it.headline || topic.slice(0, 15), subline: it.subline || "" },
-    };
-    $("importStatus").textContent = "카드 이미지 생성 중...";
-    const card = makeCardBase64(d.image_text.headline, d.image_text.subline);
-    $("importStatus").textContent = "GitHub에 저장 중...";
-    const files = { "post.json": b64utf8(JSON.stringify(d, null, 2)), "card-01.jpg": card, ...draftTextFiles(d) };
-    await ghSaveDraft(d, files, `content: 클로드 가져오기 (${slug})`);
-    toast("등록 완료! 목록에 추가되었습니다");
+    const items = Array.isArray(data) ? data : [data];
+    const topics = splitTopics(topicRaw);
+    let done = 0;
+    for (let i = 0; i < items.length; i++) {
+      const topic = String(items[i].topic || topics[i] || topics[0] || topicRaw).trim();
+      $("importStatus").textContent = `${i + 1}/${items.length} 등록 중: ${topic}`;
+      const d = await registerDraft(topic, items[i]);
+      drafts.unshift(d);
+      done++;
+    }
+    toast(`${done}건 등록 완료!`);
     $("importTopic").value = ""; $("importJson").value = "";
-    $("importStatus").textContent = "완료 ✓";
-    drafts.unshift(d); render();
+    $("importStatus").textContent = `완료 ✓ (${done}건)`;
+    render();
   } catch (e) {
     toast("가져오기 실패: " + e.message);
     $("importStatus").textContent = "실패: " + e.message;
@@ -487,12 +543,14 @@ async function loadDrafts() {
 /* ── 목록 렌더 ────────────────────────────────────────── */
 function chipClass(status) {
   if (status === "uploaded") return "uploaded";
+  if (status === "approved") return "approved";
   if (status && status.startsWith("failed")) return "failed";
   return "draft";
 }
 function chipText(name, status) {
   const label = PLATFORM_LABEL[name] || name;
   if (status === "uploaded") return label + " ✓";
+  if (status === "approved") return label + " 승인됨";
   if (status && status.startsWith("failed")) return label + " ✗";
   return label;
 }
@@ -553,9 +611,13 @@ function openDetail(index) {
         ${tags ? '<button data-act="copy-tags">태그 복사</button>' : ""}
         <button data-act="copy-all">전체 복사</button>
         ${canEdit() ? '<button data-act="edit">✏️ 편집</button>' : ""}
+        ${canEdit() && d.status?.instagram !== "uploaded"
+          ? `<button data-act="approve-ig">${d.status?.instagram === "approved" ? "승인 취소" : "✅ 자동 발행 승인"}</button>` : ""}
         ${serverOn && active === "instagram" && d.status?.instagram !== "uploaded"
           ? '<button class="primary" data-act="upload-ig">인스타그램 업로드</button>' : ""}
       </div>
+      ${canEdit() && d.status?.instagram === "approved"
+        ? '<div class="hint" style="margin-top:10px">✅ 승인됨 — 매일 오전 10시에 승인된 콘텐츠 중 가장 오래된 1건이 인스타그램에 자동 게시됩니다.</div>' : ""}
       ${!canEdit() ? '<div class="hint" style="margin-top:10px">✏️ 편집·이미지 재생성은 ⚙️ 연결 설정에서 GitHub 토큰을 넣으면 사용할 수 있습니다 (무료).</div>' : ""}`;
 
   const editHtml = (c, tags) => `
@@ -642,6 +704,24 @@ function openDetail(index) {
     if (act === "edit") { editing = true; return renderModal(); }
     if (act === "cancel") { editing = false; return renderModal(); }
     if (act === "img-toggle") { imgEditing = !imgEditing; return renderModal(); }
+
+    if (act === "approve-ig") {
+      b.disabled = true;
+      const next = d.status.instagram === "approved" ? "draft" : "approved";
+      try {
+        if (serverOn) {
+          await api(`/api/drafts/${encodeURIComponent(d.slug)}`, { status: { instagram: next } }, "PUT");
+        } else {
+          d.status.instagram = next;
+          await ghSaveDraft(d, { "post.json": b64utf8(JSON.stringify(d, null, 2)) },
+            `status: 인스타그램 발행 ${next === "approved" ? "승인" : "승인 취소"} (${d.slug})`);
+        }
+        d.status.instagram = next;
+        toast(next === "approved" ? "승인 완료 — 매일 1건씩 자동 게시 대기열에 들어갔습니다" : "승인을 취소했습니다");
+        render(); renderModal();
+      } catch (e) { toast("실패: " + e.message); b.disabled = false; }
+      return;
+    }
 
     if (act === "save") {
       b.disabled = true; b.textContent = "저장 중...";

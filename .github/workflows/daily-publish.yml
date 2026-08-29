@@ -1,0 +1,72 @@
+name: 승인 콘텐츠 자동 발행 (매일 1건)
+
+# 대시보드에서 "✅ 자동 발행 승인"한 콘텐츠 중 가장 오래된 1건을
+# 매일 인스타그램에 자동 게시한다. 승인된 것이 없으면 조용히 넘어간다.
+on:
+  schedule:
+    # 매일 10:00 KST (01:00 UTC)
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 의존성 설치
+        run: pip install requests PyYAML Pillow python-dotenv
+
+      - name: 설정 파일 준비
+        working-directory: social-automation
+        run: |
+          if [ ! -f config.yaml ]; then cp config.example.yaml config.yaml; fi
+
+      - name: 승인된 콘텐츠 선택 (가장 오래된 1건)
+        id: pick
+        run: |
+          SLUG=$(python3 - <<'EOF'
+          import json, pathlib
+          for p in sorted(pathlib.Path("social-automation/drafts").glob("*/post.json")):
+              d = json.loads(p.read_text(encoding="utf-8"))
+              if d.get("status", {}).get("instagram") == "approved":
+                  print(p.parent.name)
+                  break
+          EOF
+          )
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+          if [ -z "$SLUG" ]; then
+            echo "::notice::승인된 대기 콘텐츠가 없습니다. 대시보드에서 '✅ 자동 발행 승인'을 누르면 다음 날부터 게시됩니다."
+          else
+            echo "발행 대상: $SLUG"
+          fi
+
+      - name: Instagram 게시
+        if: ${{ steps.pick.outputs.slug != '' }}
+        working-directory: social-automation
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IMAGE_BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/social-automation
+        run: |
+          if [ -z "$IG_ACCESS_TOKEN" ] || [ -z "$IG_USER_ID" ]; then
+            echo "::notice::IG_ACCESS_TOKEN / IG_USER_ID 시크릿이 없어 게시를 건너뜁니다. (README 3장 참고)"
+            exit 0
+          fi
+          python -m sns.cli upload "${{ steps.pick.outputs.slug }}" --platforms instagram
+
+      - name: 게시 상태 커밋
+        if: ${{ steps.pick.outputs.slug != '' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add social-automation/drafts
+          git diff --cached --quiet || git commit -m "chore: 인스타그램 자동 발행 상태 갱신 (${{ steps.pick.outputs.slug }})"
+          git push
