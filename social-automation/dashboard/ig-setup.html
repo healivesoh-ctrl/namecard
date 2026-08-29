@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>인스타그램 연동 도우미</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #F6F7F9; --card: #FFFFFF; --text: #1B1D25; --muted: #6E7480;
+    --border: #E4E6EB; --accent: #4F46E5; --accent-soft: #EEF0FE;
+    --green: #0A8A5F; --green-soft: #E9F7F1; --red: #C2410C; --red-soft: #FDF0E9;
+    --gray-soft: #F0F1F4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #12141A; --card: #1B1E27; --text: #E8EAF0; --muted: #9BA1AE;
+      --border: #2B2F3B; --accent: #8B93F8; --accent-soft: #262A48;
+      --green: #3DD598; --green-soft: #14352A; --red: #F59E7B; --red-soft: #3A2118;
+      --gray-soft: #242833; }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.65;
+    font-family: "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 90px; }
+  h1 { font-size: 22px; margin-bottom: 6px; }
+  .sub { color: var(--muted); font-size: 13.5px; margin-bottom: 24px; }
+  .step { background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px; margin-bottom: 16px; }
+  .step h2 { font-size: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .n { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; background: var(--accent);
+    color: #fff; font-size: 14px; font-weight: 700; align-items: center; justify-content: center; flex: none; }
+  ol { padding-left: 20px; display: flex; flex-direction: column; gap: 7px; }
+  li b { color: var(--accent); }
+  a { color: var(--accent); word-break: break-all; }
+  code { background: var(--gray-soft); padding: 1px 7px; border-radius: 5px; font-size: 13px; }
+  input { width: 100%; font: inherit; padding: 10px 13px; border: 1px solid var(--border);
+    border-radius: 9px; background: var(--gray-soft); color: var(--text); margin-top: 8px; }
+  button { font: inherit; cursor: pointer; border: none; background: var(--accent); color: #fff;
+    font-weight: 600; border-radius: 9px; padding: 11px 20px; margin-top: 14px; width: 100%; }
+  button:disabled { opacity: .5; }
+  .result { margin-top: 16px; display: none; }
+  .result.show { display: block; }
+  .kv { background: var(--green-soft); border-radius: 10px; padding: 14px; margin-top: 10px; }
+  .kv .k { font-size: 12.5px; font-weight: 700; color: var(--green); }
+  .kv .v { font-family: ui-monospace, monospace; font-size: 12px; word-break: break-all;
+    background: var(--card); border-radius: 7px; padding: 8px 10px; margin: 6px 0 2px; }
+  .copy { width: auto; padding: 6px 14px; font-size: 13px; margin-top: 6px; background: var(--card);
+    color: var(--text); border: 1px solid var(--border); }
+  .err { background: var(--red-soft); color: var(--red); border-radius: 10px; padding: 12px 14px;
+    margin-top: 12px; font-size: 13.5px; display: none; white-space: pre-wrap; }
+  .err.show { display: block; }
+  .ok-banner { background: var(--green-soft); color: var(--green); font-weight: 700;
+    border-radius: 10px; padding: 14px; text-align: center; margin-top: 14px; }
+  .note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📸 인스타그램 연동 도우미</h1>
+  <div class="sub">아래 값들은 <b>이 브라우저 안에서만</b> 사용되고 어디에도 저장·전송되지 않습니다
+    (Meta 서버와 직접 통신).</div>
+
+  <div class="step">
+    <h2><span class="n">1</span> Meta 개발자 앱 만들기 (최초 1회)</h2>
+    <ol>
+      <li><a href="https://developers.facebook.com" target="_blank">developers.facebook.com</a> 접속 →
+        우측 상단 <b>로그인</b> (페이스북 계정) → 처음이면 개발자 등록 동의</li>
+      <li>우측 상단 <b>내 앱</b> → <b>앱 만들기</b></li>
+      <li>사용 사례 선택 화면: <b>"기타(Other)"</b> 선택 → 다음</li>
+      <li>앱 유형: <b>"비즈니스(Business)"</b> 선택 → 다음</li>
+      <li>앱 이름: <code>sns-studio</code> (아무거나) → <b>앱 만들기</b></li>
+      <li>만든 앱 화면에서 좌측 <b>앱 설정 → 기본 설정</b> →
+        <b>앱 ID</b> 와 <b>앱 시크릿 코드</b>(표시 버튼 클릭)를 복사해 두기</li>
+    </ol>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">2</span> 임시 토큰 발급 (Graph API 탐색기)</h2>
+    <ol>
+      <li><a href="https://developers.facebook.com/tools/explorer" target="_blank">developers.facebook.com/tools/explorer</a> 접속</li>
+      <li>우측 <b>Meta 앱</b>: 방금 만든 앱 선택</li>
+      <li><b>사용자 또는 페이지</b>: <b>사용자 토큰</b> 선택</li>
+      <li><b>권한 추가</b>에서 아래 4개를 검색해 추가:<br>
+        <code>instagram_basic</code> <code>instagram_content_publish</code>
+        <code>pages_show_list</code> <code>business_management</code></li>
+      <li><b>Generate Access Token</b> 클릭 → 페이스북 로그인 창에서 진행 —
+        중간에 <b>인스타그램 계정 선택</b>과 <b>페이지 선택</b> 화면이 나오면 모두 선택
+        (페이지·인스타 연결이 안 되어 있으면 이 과정에서 연결됩니다)</li>
+      <li>완료되면 <b>액세스 토큰</b> 칸에 생긴 긴 문자열(EAA...)을 복사</li>
+    </ol>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">3</span> 여기에 붙여넣고 변환</h2>
+    <input type="text" id="appId" placeholder="앱 ID (숫자)">
+    <input type="password" id="appSecret" placeholder="앱 시크릿 코드">
+    <input type="password" id="shortToken" placeholder="2번에서 복사한 임시 토큰 (EAA...)">
+    <button id="btnGo">변환하기 (장기 토큰 + 인스타그램 ID 찾기)</button>
+    <div class="err" id="errBox"></div>
+    <div class="result" id="resultBox">
+      <div class="ok-banner" id="okBanner"></div>
+      <div class="kv"><div class="k">IG_USER_ID (인스타그램 계정 번호)</div>
+        <div class="v" id="outUserId"></div>
+        <button class="copy" data-c="outUserId">복사</button></div>
+      <div class="kv"><div class="k">IG_ACCESS_TOKEN (장기 토큰 · 약 60일 유효)</div>
+        <div class="v" id="outToken"></div>
+        <button class="copy" data-c="outToken">복사</button></div>
+      <div class="note">⚠️ 이 토큰은 비밀번호처럼 다루세요. 약 60일 뒤 만료되며, 만료 시 2~3번만 다시 하면 됩니다.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">4</span> GitHub에 등록 (자동 발행 켜기)</h2>
+    <ol>
+      <li><a href="https://github.com/login" target="_blank">github.com 로그인</a> (healivesoh-ctrl 계정)</li>
+      <li><a href="https://github.com/healivesoh-ctrl/namecard/settings/secrets/actions/new" target="_blank">시크릿 등록 페이지 열기</a>
+        → Name: <code>IG_USER_ID</code>, Secret: 위의 계정 번호 → <b>Add secret</b></li>
+      <li>같은 페이지에서 한 번 더 → Name: <code>IG_ACCESS_TOKEN</code>, Secret: 위의 장기 토큰 → <b>Add secret</b></li>
+      <li>끝! 이제 스튜디오에서 <b>✅ 자동 발행 승인</b>한 콘텐츠가 매일 1건씩 인스타그램에 자동 게시됩니다.</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const V = "v21.0";
+
+function showErr(msg) {
+  const e = $("errBox");
+  e.textContent = msg;
+  e.classList.add("show");
+}
+async function gf(path, params) {
+  const url = new URL(`https://graph.facebook.com/${V}/${path}`);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const r = await fetch(url);
+  const data = await r.json();
+  if (data.error) throw new Error(`${data.error.message} (코드 ${data.error.code})`);
+  return data;
+}
+
+$("btnGo").onclick = async () => {
+  const appId = $("appId").value.trim();
+  const appSecret = $("appSecret").value.trim();
+  const shortToken = $("shortToken").value.trim();
+  $("errBox").classList.remove("show");
+  $("resultBox").classList.remove("show");
+  if (!appId || !appSecret || !shortToken) return showErr("세 칸을 모두 채워 주세요.");
+  const btn = $("btnGo");
+  btn.disabled = true; btn.textContent = "변환 중…";
+  try {
+    // 1) 장기 토큰 교환
+    const ex = await gf("oauth/access_token", {
+      grant_type: "fb_exchange_token", client_id: appId,
+      client_secret: appSecret, fb_exchange_token: shortToken,
+    });
+    const longToken = ex.access_token;
+    // 2) 페이지 목록 → 인스타그램 비즈니스 계정 찾기
+    const pages = await gf("me/accounts", { access_token: longToken });
+    if (!pages.data || !pages.data.length)
+      throw new Error("연결된 페이스북 페이지를 찾지 못했습니다. 2번 과정에서 페이지를 선택했는지, pages_show_list 권한을 추가했는지 확인하세요.");
+    let igId = null, igName = "", pageName = "";
+    for (const p of pages.data) {
+      const info = await gf(p.id, { fields: "instagram_business_account,name", access_token: longToken });
+      if (info.instagram_business_account) {
+        igId = info.instagram_business_account.id;
+        pageName = info.name;
+        break;
+      }
+    }
+    if (!igId)
+      throw new Error("페이지에 연결된 인스타그램 계정을 찾지 못했습니다. 인스타그램이 프로페셔널 계정인지, 2번 과정에서 인스타그램 계정을 선택했는지 확인하세요.");
+    // 3) 확인: 인스타 계정 이름 조회
+    const ig = await gf(igId, { fields: "username", access_token: longToken });
+    igName = ig.username || "";
+    $("okBanner").textContent = `✅ 연동 확인 완료 — @${igName} (페이지: ${pageName})`;
+    $("outUserId").textContent = igId;
+    $("outToken").textContent = longToken;
+    $("resultBox").classList.add("show");
+  } catch (e) {
+    showErr("실패: " + e.message + "\n\n해결이 어려우면 이 메시지를 그대로 클로드에게 보여주세요.");
+  } finally {
+    btn.disabled = false; btn.textContent = "변환하기 (장기 토큰 + 인스타그램 ID 찾기)";
+  }
+};
+document.querySelectorAll(".copy").forEach(b => b.onclick = () => {
+  navigator.clipboard.writeText($(b.dataset.c).textContent)
+    .then(() => { b.textContent = "복사됨 ✓"; setTimeout(() => b.textContent = "복사", 1500); });
+});
+</script>
+</body>
+</html>
