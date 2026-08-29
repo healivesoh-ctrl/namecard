@@ -121,6 +121,23 @@
   .img-edit input[type=color] { width: 44px; height: 34px; border: 1px solid var(--border);
     border-radius: 8px; background: var(--card); padding: 2px; cursor: pointer; }
 
+  /* 이미지 갤러리 (여러 장 카드뉴스) */
+  .gallery { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 14px; align-items: center; }
+  .gallery img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px;
+                 border: 2px solid transparent; cursor: pointer; }
+  .gallery img.sel { border-color: var(--accent); }
+  .gallery .add-img { width: 64px; height: 64px; border: 2px dashed var(--border);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: var(--muted); cursor: pointer; background: none; padding: 0; }
+  .badge-count { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,.55);
+    color: #fff; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 99px; }
+  .card { position: relative; }
+  .file-drop { border: 2px dashed var(--border); border-radius: 10px; padding: 16px;
+    text-align: center; color: var(--muted); cursor: pointer; font-size: 13.5px; }
+  .file-drop:hover { border-color: var(--accent); color: var(--accent); }
+  .file-previews { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .file-previews img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; }
+
   .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
            background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: 99px;
            font-size: 13.5px; z-index: 99; opacity: 0; transition: opacity .2s; pointer-events: none; }
@@ -184,6 +201,25 @@
       <button class="primary" id="btnImport">3️⃣ 가져오기 (카드 이미지 자동 생성)</button>
       <span class="hint" style="margin:0" id="importStatus"></span>
     </div>
+  </div>
+
+  <!-- 내 콘텐츠 올리기 (직접 만든 이미지/글, 여러 장 카드뉴스) -->
+  <div class="panel hidden" id="uploadPanel">
+    <h2>📤 내 콘텐츠 올리기 (직접 만든 카드뉴스·이미지)</h2>
+    <div class="row" style="margin-bottom:10px">
+      <input type="text" id="ownTitle" placeholder="제목/주제 — 예: 9월 프로모션 카드뉴스">
+    </div>
+    <div class="file-drop" id="ownDrop">🖼 클릭해서 이미지 선택 (여러 장 가능 — 카드뉴스 순서대로)</div>
+    <input type="file" id="ownFiles" accept="image/*" multiple class="hidden">
+    <div class="file-previews" id="ownPreviews"></div>
+    <textarea id="ownBody" placeholder="본문/캡션 (등록 후 플랫폼별로 각각 수정 가능)"
+      style="width:100%; min-height:90px; margin-top:10px; font:inherit; padding:10px 12px;
+             border:1px solid var(--border); border-radius:8px; background:var(--gray-soft); color:var(--text); resize:vertical"></textarea>
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="ownTags" placeholder="해시태그 (공백으로 구분) — 예: #NFC명함 #이벤트">
+      <button class="primary" id="btnOwnUpload">등록하기</button>
+    </div>
+    <div class="hint" id="ownStatus">이미지는 자동으로 JPEG(최대 1440px)로 변환됩니다. 여러 장이면 인스타그램에 캐러셀(넘김형)로 게시됩니다.</div>
   </div>
 
   <!-- 콘텐츠 생성 (서버 연결 시) -->
@@ -268,6 +304,36 @@ async function ghSaveDraft(d, files, message) {
   for (const [name, content] of Object.entries(files)) {
     await ghPutFile(`${BASE_PATH}/${d.slug}/${name}`, content, message);
   }
+}
+
+async function ghDeleteFile(path, message) {
+  const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}`;
+  const headers = { Authorization: `Bearer ${ghToken}`, Accept: "application/vnd.github+json" };
+  const g = await fetch(`${url}?ref=${encodeURIComponent(branch)}`, { headers, cache: "no-store" });
+  if (!g.ok) return; // 이미 없음
+  const sha = (await g.json()).sha;
+  await fetch(url, { method: "DELETE", headers,
+    body: JSON.stringify({ message, sha, branch }) });
+}
+
+/* 업로드 이미지 → JPEG base64 (최대 1440px 리사이즈, 인스타그램 호환) */
+async function fileToJpegBase64(file, maxSide = 1440) {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#FFFFFF"; // PNG 투명 배경 대비
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  return cv.toDataURL("image/jpeg", 0.9).split(",")[1];
+}
+
+function nextImageName(images) {
+  let n = 1;
+  while (images.includes(`card-${String(n).padStart(2, "0")}.jpg`)) n++;
+  return `card-${String(n).padStart(2, "0")}.jpg`;
 }
 
 function draftTextFiles(d) {
@@ -489,6 +555,67 @@ async function importFromClaude() {
   }
 }
 
+/* ── 내 콘텐츠 올리기 (직접 만든 이미지·글) ────────────── */
+let ownSelectedFiles = [];
+
+async function uploadOwnContent() {
+  const btn = $("btnOwnUpload");
+  const title = $("ownTitle").value.trim();
+  const body = $("ownBody").value.trim();
+  const tags = $("ownTags").value.split(/[\s,]+/).map(t => t.replace(/^#/, "")).filter(Boolean);
+  if (!title) return toast("제목/주제를 입력하세요");
+  if (!ownSelectedFiles.length) return toast("이미지를 1장 이상 선택하세요");
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 등록 중...';
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const slug = `${today}-${slugifyJs(title)}`;
+    const images = [], files = {};
+    for (let i = 0; i < ownSelectedFiles.length; i++) {
+      $("ownStatus").textContent = `이미지 변환 중 ${i + 1}/${ownSelectedFiles.length}...`;
+      const name = `card-${String(i + 1).padStart(2, "0")}.jpg`;
+      files[name] = await fileToJpegBase64(ownSelectedFiles[i]);
+      images.push(name);
+    }
+    const mk = (platform, t) => ({ platform, title: t, body, hashtags: tags });
+    const d = {
+      topic: title, slug,
+      created_at: new Date().toISOString().slice(0, 19),
+      images,
+      contents: {
+        instagram: mk("instagram", ""),
+        xiaohongshu: mk("xiaohongshu", title),
+        naver_blog: mk("naver_blog", title),
+      },
+      status: { instagram: "draft", xiaohongshu: "draft", naver_blog: "draft" },
+      image_text: {},
+    };
+    files["post.json"] = b64utf8(JSON.stringify(d, null, 2));
+    Object.assign(files, draftTextFiles(d));
+    $("ownStatus").textContent = "GitHub에 저장 중...";
+    await ghSaveDraft(d, files, `content: 내 콘텐츠 업로드 (${slug})`);
+    drafts.unshift(d); render();
+    toast(`등록 완료! 이미지 ${images.length}장`);
+    $("ownStatus").textContent = `완료 ✓ (이미지 ${images.length}장) — 카드를 눌러 플랫폼별 본문을 다듬어 보세요`;
+    $("ownTitle").value = ""; $("ownBody").value = ""; $("ownTags").value = "";
+    ownSelectedFiles = []; $("ownPreviews").innerHTML = "";
+  } catch (e) {
+    toast("등록 실패: " + e.message);
+    $("ownStatus").textContent = "실패: " + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = "등록하기";
+  }
+}
+
+function renderOwnPreviews() {
+  const box = $("ownPreviews");
+  box.innerHTML = "";
+  ownSelectedFiles.forEach(f => {
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(f);
+    box.appendChild(img);
+  });
+}
+
 /* ── 데이터 로드 (GitHub API, 인증 불필요 · public repo) ── */
 async function listSlugsOn(br) {
   const r = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${BASE_PATH}?ref=${encodeURIComponent(br)}`);
@@ -566,7 +693,8 @@ function render() {
     const card = document.createElement("div");
     card.className = "card";
     card.onclick = () => openDetail(i);
-    const img = d.images && d.images.length ? `<img class="thumb" loading="lazy" src="${rawUrl(d.slug, d.images[0])}" alt="">` : "";
+    const img = d.images && d.images.length ? `<img class="thumb" loading="lazy" src="${rawUrl(d.slug, d.images[0])}" alt="">`
+      + (d.images.length > 1 ? `<span class="badge-count">🖼 ${d.images.length}장</span>` : "") : "";
     const chips = Object.entries(d.status || {})
       .map(([k, v]) => `<span class="chip ${chipClass(v)}">${chipText(k, v)}</span>`).join("");
     card.innerHTML = `${img}<div class="card-body">
@@ -594,13 +722,15 @@ function openDetail(index) {
   let editing = false;      // 본문 편집 모드
   let imgEditing = false;   // 이미지 편집 모드
   let imgBust = 0;          // 이미지 재생성 후 캐시 무효화
-  let imgDataOverride = null; // 무료 모드: 방금 만든 이미지를 즉시 표시
+  let imgIndex = 0;         // 여러 장 카드뉴스에서 현재 보는 장
+  const imgOverrides = {};  // 파일명 -> 방금 만든/추가한 이미지 dataURL (즉시 표시)
 
   const modal = document.createElement("div");
   modal.className = "modal";
 
-  const imgSrc = () => imgDataOverride
-    || rawUrl(d.slug, d.images[0]) + (imgBust ? `?t=${imgBust}` : "");
+  const imgSrcOf = (name) => imgOverrides[name]
+    || rawUrl(d.slug, name) + (imgBust ? `?t=${imgBust}` : "");
+  const imgSrc = () => imgSrcOf(d.images[Math.min(imgIndex, d.images.length - 1)]);
 
   const viewHtml = (c, tags) => `
       <div class="content-box">${c.title ? `<div class="content-title">${escapeHtml(c.title)}</div>` : ""}${escapeHtml(c.body || "")}
@@ -676,8 +806,17 @@ function openDetail(index) {
       <div class="meta">${escapeHtml(d.slug)} · 생성 ${(d.created_at || "").replace("T", " ").slice(0, 16)}</div>
       ${d.images && d.images.length ? `
         <img class="preview" id="cardPreview" src="${imgSrc()}" alt="카드 이미지">
-        ${canEdit() ? `<div style="margin:-6px 0 14px">
-          <button data-act="img-toggle">${imgEditing ? "이미지 편집 닫기" : "🖼 이미지 편집"}</button></div>` : ""}
+        ${d.images.length > 1 || ghToken ? `<div class="gallery">
+          ${d.images.map((name, i) =>
+            `<img src="${imgSrcOf(name)}" class="${i === imgIndex ? "sel" : ""}" data-imgidx="${i}" alt="">`).join("")}
+          ${ghToken && d.status?.instagram !== "uploaded"
+            ? '<button class="add-img" data-act="img-add" title="이미지 추가">＋</button>' : ""}
+        </div>` : ""}
+        <div style="margin:-6px 0 14px; display:flex; gap:8px">
+          ${canEdit() ? `<button data-act="img-toggle">${imgEditing ? "이미지 편집 닫기" : "🖼 표지 이미지 편집"}</button>` : ""}
+          ${ghToken && d.images.length > 1 && d.status?.instagram !== "uploaded"
+            ? '<button data-act="img-del">🗑 이 이미지 삭제</button>' : ""}
+        </div>
         ${imgEditing ? imgEditHtml() : ""}` : ""}
       <div class="tabs">${platforms.map(p =>
         `<button class="tab ${p === active ? "active" : ""}" data-p="${p}">${PLATFORM_LABEL[p] || p}</button>`).join("")}</div>
@@ -690,6 +829,9 @@ function openDetail(index) {
       editing = false; active = b.dataset.p; renderModal();
     });
     modal.querySelectorAll("[data-act]").forEach(b => b.onclick = () => handleAction(b));
+    modal.querySelectorAll("[data-imgidx]").forEach(t => t.onclick = () => {
+      imgIndex = parseInt(t.dataset.imgidx, 10); renderModal();
+    });
   };
 
   async function handleAction(b) {
@@ -704,6 +846,49 @@ function openDetail(index) {
     if (act === "edit") { editing = true; return renderModal(); }
     if (act === "cancel") { editing = false; return renderModal(); }
     if (act === "img-toggle") { imgEditing = !imgEditing; return renderModal(); }
+
+    if (act === "img-add") {
+      const picker = document.createElement("input");
+      picker.type = "file"; picker.accept = "image/*"; picker.multiple = true;
+      picker.onchange = async () => {
+        if (!picker.files.length) return;
+        b.disabled = true;
+        try {
+          for (const file of picker.files) {
+            const name = nextImageName(d.images);
+            const b64 = await fileToJpegBase64(file);
+            await ghPutFile(`${BASE_PATH}/${d.slug}/${name}`, b64,
+              `edit: 이미지 추가 ${name} (${d.slug})`);
+            d.images.push(name);
+            imgOverrides[name] = "data:image/jpeg;base64," + b64;
+          }
+          await ghSaveDraft(d, { "post.json": b64utf8(JSON.stringify(d, null, 2)) },
+            `edit: 이미지 목록 갱신 (${d.slug})`);
+          toast(`이미지 추가 완료 (총 ${d.images.length}장)`);
+          renderModal(); render();
+        } catch (e) { toast("이미지 추가 실패: " + e.message); b.disabled = false; }
+      };
+      picker.click();
+      return;
+    }
+
+    if (act === "img-del") {
+      const name = d.images[imgIndex];
+      if (d.images.length <= 1) return toast("이미지는 최소 1장 필요합니다");
+      if (!confirm(`${imgIndex + 1}번째 이미지를 삭제할까요?`)) return;
+      b.disabled = true;
+      try {
+        await ghDeleteFile(`${BASE_PATH}/${d.slug}/${name}`, `edit: 이미지 삭제 ${name} (${d.slug})`);
+        d.images.splice(imgIndex, 1);
+        delete imgOverrides[name];
+        imgIndex = 0;
+        await ghSaveDraft(d, { "post.json": b64utf8(JSON.stringify(d, null, 2)) },
+          `edit: 이미지 목록 갱신 (${d.slug})`);
+        toast("삭제했습니다");
+        renderModal(); render();
+      } catch (e) { toast("삭제 실패: " + e.message); b.disabled = false; }
+      return;
+    }
 
     if (act === "approve-ig") {
       b.disabled = true;
@@ -811,7 +996,7 @@ function openDetail(index) {
         } else {
           // 무료 모드: 캔버스로 그려서 GitHub에 직접 커밋
           const card = makeCardBase64(params.headline, params.subline, params.color_top, params.color_bottom);
-          imgDataOverride = "data:image/jpeg;base64," + card;
+          imgOverrides[d.images[0] || "card-01.jpg"] = "data:image/jpeg;base64," + card;
           d.image_text = params;
           if (!(d.images || []).includes("card-01.jpg")) d.images = ["card-01.jpg", ...(d.images || [])];
           await ghSaveDraft(d, {
@@ -853,6 +1038,7 @@ async function checkServer() {
   $("connLabel").textContent = serverOn ? "서버 연결됨" : (ghToken ? "클로드 연동 (무료)" : "읽기 전용");
   $("generatePanel").classList.toggle("hidden", !serverOn);
   $("importPanel").classList.toggle("hidden", !ghToken);
+  $("uploadPanel").classList.toggle("hidden", !ghToken);
 }
 
 async function api(path, body, method = "POST") {
@@ -936,6 +1122,13 @@ $("btnSaveSettings").onclick = async () => {
 };
 $("btnGenerate").onclick = generate;
 $("btnImport").onclick = importFromClaude;
+$("btnOwnUpload").onclick = uploadOwnContent;
+$("ownDrop").onclick = () => $("ownFiles").click();
+$("ownFiles").onchange = () => {
+  ownSelectedFiles = Array.from($("ownFiles").files);
+  renderOwnPreviews();
+  if (ownSelectedFiles.length) $("ownDrop").textContent = `🖼 ${ownSelectedFiles.length}장 선택됨 — 다시 클릭하면 변경`;
+};
 $("btnCopyPrompt").onclick = () => {
   const topic = $("importTopic").value.trim();
   if (!topic) return toast("주제를 먼저 입력하세요");
