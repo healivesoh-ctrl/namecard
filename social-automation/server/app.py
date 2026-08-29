@@ -38,7 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sns.config import BASE_DIR, Config, load_config  # noqa: E402
 from sns.models import Post  # noqa: E402
 
-from .github_client import GitHubRepo  # noqa: E402
+from .github_client import GitHubError, GitHubRepo  # noqa: E402
 
 GH_REPO = os.environ.get("GH_REPO", "healivesoh-ctrl/namecard")
 GH_BRANCH = os.environ.get("GH_BRANCH", "main")
@@ -54,6 +54,13 @@ app.add_middleware(
 
 # 진행 중인 생성 작업 (in-memory; 서버 1대 전제)
 JOBS: dict[str, dict] = {}
+
+
+@app.exception_handler(GitHubError)
+async def _github_error_handler(request, exc: GitHubError):
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
 
 
 def _config() -> Config:
@@ -95,6 +102,69 @@ def index():
 @app.get("/api/health")
 def health():
     return {"ok": True, "repo": GH_REPO, "branch": GH_BRANCH}
+
+
+@app.get("/api/drafts")
+def list_drafts():
+    """초안 목록(공개 데이터). 대시보드가 서버 연결 시 GitHub 대신 이 API를 사용한다.
+
+    GitHub에 접근할 수 없으면(토큰 없음·네트워크 제한 등) 서버 로컬 디스크의
+    초안으로 폴백한다(로컬 개발 모드).
+    """
+    drafts = []
+    try:
+        # 읽기는 public repo 라면 토큰 없이도 가능
+        gh = GitHubRepo(os.environ.get("GITHUB_TOKEN", ""), GH_REPO, GH_BRANCH)
+        for item in gh.list_dir(DRAFTS_PATH):
+            if item.get("type") != "dir":
+                continue
+            f = gh.get_file(f"{DRAFTS_PATH}/{item['name']}/post.json")
+            if not f:
+                continue
+            try:
+                drafts.append(json.loads(f[0]))
+            except json.JSONDecodeError:
+                continue
+    except GitHubError:
+        cfg = _config()
+        if cfg.drafts_dir.exists():
+            for d in cfg.drafts_dir.iterdir():
+                pj = d / "post.json"
+                if pj.exists():
+                    try:
+                        drafts.append(json.loads(pj.read_text(encoding="utf-8")))
+                    except json.JSONDecodeError:
+                        continue
+    drafts.sort(key=lambda d: d.get("slug", ""), reverse=True)
+    return {"branch": GH_BRANCH, "drafts": drafts}
+
+
+@app.get("/api/file/{slug}/{filename}")
+def get_draft_file(slug: str, filename: str):
+    """초안 폴더의 파일(카드 이미지 등)을 서빙 — 대시보드 썸네일용."""
+    import mimetypes
+
+    from fastapi.responses import Response
+
+    if "/" in slug or ".." in slug or "/" in filename or ".." in filename:
+        raise HTTPException(400, "잘못된 경로입니다.")
+    content: bytes | None = None
+    try:
+        gh = GitHubRepo(os.environ.get("GITHUB_TOKEN", ""), GH_REPO, GH_BRANCH)
+        found = gh.get_file(f"{DRAFTS_PATH}/{slug}/{filename}")
+        if found:
+            content = found[0]
+    except GitHubError:
+        pass
+    if content is None:
+        local = _config().drafts_dir / slug / filename
+        if local.exists():
+            content = local.read_bytes()
+    if content is None:
+        raise HTTPException(404, "파일을 찾을 수 없습니다.")
+    media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return Response(content=content, media_type=media_type,
+                    headers={"Cache-Control": "public, max-age=3600"})
 
 
 # ── 생성 ──────────────────────────────────────────────────
