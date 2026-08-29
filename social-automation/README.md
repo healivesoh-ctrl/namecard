@@ -93,7 +93,46 @@ python -m sns.cli upload <slug> --platforms naver_blog
 - 스마트에디터 ONE(iframe) 기준. 셀렉터는 `sns/uploaders/naver_blog.py` 상단 상수 참고
 - 현재는 텍스트+태그 게시(이미지 첨부는 에디터의 OS 파일창 때문에 수동 권장)
 
-## 4. 스케줄 자동화
+## 4. 관리 대시보드 (웹 화면)
+
+`dashboard/index.html` — 초안 목록·미리보기·업로드 상태를 보여주는 **정적 웹앱**입니다.
+서버 없이 GitHub에서 직접 데이터를 읽으므로(공개 리포) 호스팅만 하면 됩니다.
+
+**GitHub Pages로 호스팅** (URL 만들기):
+1. 리포지토리 **Settings → Pages → Source: "Deploy from a branch"** → 브랜치 `main`, 폴더 `/ (root)` 선택 후 저장
+2. 1~2분 뒤 접속: `https://healivesoh-ctrl.github.io/namecard/social-automation/dashboard/`
+3. (머지 전이라면 브랜치를 `claude/social-media-automation-system-2fq5tu` 로 선택해도 됨)
+
+기능:
+- 초안 카드 목록(썸네일·날짜·플랫폼별 상태 ✓/✗)
+- 상세 보기: 플랫폼 탭 전환, 제목/본문/태그 **복사 버튼** (샤오홍슈·네이버에 붙여넣기용)
+- 우측 상단 **⚙️ 서버 연결**에 아래 웹 서비스 URL + 비밀번호를 넣으면
+  이 화면에서 바로 **콘텐츠 생성·인스타그램 업로드**까지 가능
+
+## 5. 웹 서비스 (생성 서버 — Render 배포)
+
+`server/` — FastAPI 서버. 대시보드 서빙 + 콘텐츠 생성 API + 인스타그램 업로드 API.
+생성된 초안은 **GitHub 리포에 자동 커밋**되므로 서버가 재시작돼도 데이터가 유지되고,
+대시보드·Actions·CLI와 항상 같은 데이터를 봅니다.
+
+**Render 배포** (무료 플랜 가능):
+1. [render.com](https://render.com) 가입 → **New + → Blueprint** → 이 GitHub 리포 연결
+   (리포 루트의 `render.yaml` 을 자동 인식)
+2. 환경변수 입력:
+   - `ANTHROPIC_API_KEY` — Claude API 키
+   - `GITHUB_TOKEN` — [Fine-grained 토큰](https://github.com/settings/personal-access-tokens) (이 리포의 Contents: Read and write 권한)
+   - `ADMIN_PASSWORD` — 대시보드에서 생성/업로드 시 입력할 비밀번호(직접 정하기)
+   - `IG_ACCESS_TOKEN`, `IG_USER_ID` — 인스타그램 업로드용(선택)
+3. 배포 완료 후 발급되는 URL(예: `https://sns-automation.onrender.com`)이 서비스 주소.
+   그 주소 자체가 대시보드이기도 하고, GitHub Pages 대시보드의 ⚙️ 서버 연결에 넣어도 됩니다.
+
+참고:
+- 무료 플랜은 15분 무접속 시 잠들었다가 첫 요청 때 깨어납니다(수십 초 지연)
+- 로컬 실행: `cd social-automation && pip install -r server/requirements.txt && uvicorn server.app:app`
+- 서버 업로드는 인스타그램(공식 API)만 지원. 샤오홍슈·네이버는 로그인 세션이 필요해
+  대시보드의 복사 버튼 또는 로컬 CLI(Playwright)로 게시합니다
+
+## 6. 스케줄 자동화
 
 ### GitHub Actions (권장)
 
@@ -112,7 +151,7 @@ python -m sns.cli upload <slug> --platforms naver_blog
 0 9 * * * cd /path/to/namecard/social-automation && python -m sns.cli run --auto >> sns.log 2>&1
 ```
 
-## 5. 주의사항
+## 7. 주의사항
 
 - 샤오홍슈·네이버 자동화는 각 플랫폼 약관상 제한될 수 있는 영역입니다.
   **본인 계정, 저빈도, 검수 후 게시**를 전제로 사용하세요.

@@ -1,0 +1,8 @@
+# 웹 서비스 전용 의존성 (Playwright 제외 — 서버는 인스타그램 API 업로드만 수행)
+fastapi>=0.111
+uvicorn>=0.30
+anthropic>=1.0.0
+requests>=2.31.0
+PyYAML>=6.0
+Pillow>=10.0.0
+python-dotenv>=1.0.0

@@ -1,0 +1,24 @@
+# Render Blueprint — https://render.com 에서 "New +" → "Blueprint" 로 이 리포를
+# 연결하면 자동으로 웹 서비스가 생성됩니다. sync:false 항목은 대시보드에서 직접 입력.
+services:
+  - type: web
+    name: sns-automation
+    runtime: docker
+    plan: free
+    dockerfilePath: ./social-automation/Dockerfile
+    dockerContext: ./social-automation
+    envVars:
+      - key: ANTHROPIC_API_KEY   # Claude API 키 (필수)
+        sync: false
+      - key: GITHUB_TOKEN        # 초안 커밋용, Contents 읽기/쓰기 권한 (필수)
+        sync: false
+      - key: ADMIN_PASSWORD      # 대시보드에서 생성/업로드 시 입력할 비밀번호 (필수)
+        sync: false
+      - key: GH_REPO
+        value: healivesoh-ctrl/namecard
+      - key: GH_BRANCH
+        value: main
+      - key: IG_ACCESS_TOKEN     # 인스타그램 업로드 (선택)
+        sync: false
+      - key: IG_USER_ID          # 인스타그램 업로드 (선택)
+        sync: false
