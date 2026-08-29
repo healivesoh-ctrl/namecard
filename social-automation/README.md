@@ -103,15 +103,27 @@ python -m sns.cli upload <slug> --platforms naver_blog
 2. 1~2분 뒤 접속: `https://healivesoh-ctrl.github.io/namecard/social-automation/dashboard/`
 3. (머지 전이라면 브랜치를 `claude/social-media-automation-system-2fq5tu` 로 선택해도 됨)
 
-기능:
-- 초안 카드 목록(썸네일·날짜·플랫폼별 상태 ✓/✗)
-- 상세 보기: 플랫폼 탭 전환, 제목/본문/태그 **복사 버튼** (샤오홍슈·네이버에 붙여넣기용)
-- 우측 상단 **⚙️ 서버 연결**에 아래 웹 서비스 URL + 비밀번호를 넣으면 추가로:
-  - ✨ **새 콘텐츠 생성** (주제 입력 → Claude 생성)
-  - ✏️ **본문 편집** — 제목/본문/해시태그 직접 수정 후 저장
-  - 🪄 **AI 수정** — "더 짧게", "이모지 추가" 같은 지시로 Claude 재작성
-  - 🖼 **카드 이미지 편집** — 문구·그라데이션 색상 변경 후 재생성
-  - 인스타그램 업로드 버튼
+### 연동 모드 2가지
+
+**모드 A — 무료 연동 (추천, 추가 요금 없음)**: claude.ai 구독만으로 사용.
+⚙️ 연결 설정에 **GitHub 토큰**만 입력하면 켜집니다
+([발급](https://github.com/settings/personal-access-tokens/new): Only select repositories →
+`namecard` → Contents: Read and write).
+
+무료 모드 사용 흐름:
+1. 📥 가져오기 패널에 주제 입력 → **1️⃣ 프롬프트 복사**
+2. 평소 쓰는 **claude.ai 채팅**에 붙여넣기 (구독 요금으로 생성, API 과금 없음)
+3. Claude 답변(JSON)을 복사해 **2️⃣ 붙여넣기 → 3️⃣ 가져오기**
+   → 카드 이미지가 브라우저에서 자동 생성되고 GitHub에 저장됨
+4. ✏️ 편집(제목/본문/해시태그), 🖼 이미지 편집(문구·색상), 🪄 수정 프롬프트 복사→답변 적용 —
+   전부 서버 없이 동작
+
+**모드 B — 자동 생성 서버 (선택, Claude API 종량 과금)**: Render에 서버를 배포하고
+API 키를 넣으면 대시보드 버튼 클릭만으로 생성·AI수정·인스타그램 업로드까지 자동.
+매일 자동 생성(GitHub Actions cron)도 이 API 키를 사용합니다.
+
+공통 기능(연동 없이도): 초안 목록·썸네일·상태 ✓/✗, 플랫폼 탭 미리보기,
+제목/본문/태그 복사 버튼(샤오홍슈·네이버 붙여넣기 게시용)
 
 ## 5. 웹 서비스 (생성 서버 — Render 배포)
 
