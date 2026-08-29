@@ -31,6 +31,8 @@ class Post:
     contents: dict[str, PlatformContent] = field(default_factory=dict)
     # platform -> "draft" | "uploaded" | "failed:<사유>"
     status: dict[str, str] = field(default_factory=dict)
+    # 카드 이미지 문구/색상: {"headline", "subline", "color_top", "color_bottom"}
+    image_text: dict[str, str] = field(default_factory=dict)
 
     def to_json(self) -> str:
         data = asdict(self)
@@ -49,6 +51,7 @@ class Post:
             images=data.get("images", []),
             contents=contents,
             status=data.get("status", {}),
+            image_text=data.get("image_text", {}),
         )
 
     def save(self, draft_dir: Path) -> Path:

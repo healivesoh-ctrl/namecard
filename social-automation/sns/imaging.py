@@ -66,9 +66,16 @@ def _wrap(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list[st
     return [ln for ln in lines if ln != ""] or [""]
 
 
-def make_card(cfg: Config, headline: str, subline: str, out_path: Path) -> Path:
-    top = _hex_to_rgb(cfg.image.get("color_top", "#4F46E5"))
-    bottom = _hex_to_rgb(cfg.image.get("color_bottom", "#0EA5E9"))
+def make_card(
+    cfg: Config,
+    headline: str,
+    subline: str,
+    out_path: Path,
+    color_top: str | None = None,
+    color_bottom: str | None = None,
+) -> Path:
+    top = _hex_to_rgb(color_top or cfg.image.get("color_top", "#4F46E5"))
+    bottom = _hex_to_rgb(color_bottom or cfg.image.get("color_bottom", "#0EA5E9"))
 
     img = Image.new("RGB", (SIZE, SIZE))
     for y in range(SIZE):

@@ -130,4 +130,61 @@ def generate_post(cfg: Config, topic: str) -> tuple[Post, dict]:
     for name in cfg.enabled_platforms():
         post.status[name] = "draft"
 
-    return post, data.get("image_text", {})
+    post.image_text = {
+        "headline": str(data.get("image_text", {}).get("headline", "") or topic[:15]),
+        "subline": str(data.get("image_text", {}).get("subline", "")),
+    }
+    return post, post.image_text
+
+
+REVISE_SYSTEM = """\
+당신은 SNS 콘텐츠 에디터입니다. 기존 콘텐츠를 사용자의 지시에 따라 수정합니다.
+플랫폼 고유의 문법(인스타그램: 한국어 캡션, 샤오홍슈: 중국어 구어체, 네이버블로그:
+한국어 장문 SEO 포스트)은 유지하세요.
+
+반드시 아래 JSON 으로만 응답하세요. JSON 외의 설명을 붙이지 마세요.
+{"title": "...", "body": "...", "hashtags": ["...", ...]}
+(제목이 없는 플랫폼이면 title 은 빈 문자열)
+"""
+
+
+def revise_content(
+    cfg: Config, platform: str, title: str, body: str, hashtags: list[str], instruction: str
+) -> dict:
+    """기존 플랫폼 콘텐츠를 지시(instruction)대로 재작성해 dict 로 반환한다."""
+    client = anthropic.Anthropic()
+    user = f"""\
+플랫폼: {platform}
+브랜드: {cfg.brand.get('name', '')} — {cfg.brand.get('description', '')}
+톤앤매너: {cfg.brand.get('tone', '')}
+
+[현재 콘텐츠]
+제목: {title}
+본문:
+{body}
+해시태그: {', '.join(hashtags)}
+
+[수정 지시]
+{instruction}
+"""
+    with client.beta.messages.stream(
+        model=cfg.model,
+        max_tokens=16000,
+        betas=["server-side-fallback-2026-07-01"],
+        fallbacks="default",
+        thinking={"type": "adaptive"},
+        system=REVISE_SYSTEM,
+        messages=[{"role": "user", "content": user}],
+    ) as stream:
+        response = stream.get_final_message()
+
+    if response.stop_reason == "refusal":
+        raise RuntimeError(f"모델이 요청을 거절했습니다: {getattr(response, 'stop_details', None)}")
+
+    text = "".join(b.text for b in response.content if b.type == "text")
+    data = _extract_json(text)
+    return {
+        "title": str(data.get("title", "")),
+        "body": str(data.get("body", "")),
+        "hashtags": [str(t) for t in data.get("hashtags", [])],
+    }
