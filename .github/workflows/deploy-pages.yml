@@ -1,0 +1,44 @@
+name: 대시보드 배포 (GitHub Pages)
+
+# main 에 push 될 때마다 사이트(명함 페이지 + SNS 대시보드)를 GitHub Pages 로 배포.
+# enablement: true 로 Pages 가 꺼져 있어도 자동으로 활성화한다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pages 활성화 및 설정
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: 사이트 파일 구성
+        run: |
+          mkdir -p _site
+          rsync -a --exclude '.git' --exclude '_site' ./ _site/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: 배포
+        id: deployment
+        uses: actions/deploy-pages@v4
