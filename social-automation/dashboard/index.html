@@ -100,6 +100,26 @@
   .modal .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
   .status-line { font-size: 13px; margin-top: 12px; color: var(--muted); }
 
+  /* 편집 모드 */
+  .edit-form { display: flex; flex-direction: column; gap: 10px; }
+  .edit-form label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .edit-form input[type=text], .edit-form textarea {
+    font: inherit; width: 100%; padding: 9px 12px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--gray-soft); color: var(--text);
+  }
+  .edit-form textarea { min-height: 220px; resize: vertical; line-height: 1.6; }
+  .ai-box { display: flex; gap: 8px; background: var(--accent-soft); border-radius: 10px; padding: 10px; }
+  .ai-box input { flex: 1; border: 1px solid var(--border); border-radius: 8px;
+                  padding: 8px 12px; font: inherit; background: var(--card); color: var(--text); }
+  .img-edit { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;
+              background: var(--gray-soft); border-radius: 10px; padding: 12px; }
+  .img-edit .field { display: flex; flex-direction: column; gap: 4px; }
+  .img-edit label { font-size: 12px; color: var(--muted); }
+  .img-edit input[type=text] { padding: 7px 10px; border: 1px solid var(--border);
+    border-radius: 8px; font: inherit; background: var(--card); color: var(--text); }
+  .img-edit input[type=color] { width: 44px; height: 34px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--card); padding: 2px; cursor: pointer; }
+
   .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
            background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: 99px;
            font-size: 13.5px; z-index: 99; opacity: 0; transition: opacity .2s; pointer-events: none; }
@@ -276,12 +296,65 @@ function openDetail(index) {
 
   const platforms = Object.keys(d.contents || {});
   let active = platforms[0];
+  let editing = false;      // 본문 편집 모드
+  let imgEditing = false;   // 이미지 편집 모드
+  let imgBust = 0;          // 이미지 재생성 후 캐시 무효화
 
   const modal = document.createElement("div");
   modal.className = "modal";
+
+  const imgSrc = () => rawUrl(d.slug, d.images[0]) + (imgBust ? `?t=${imgBust}` : "");
+
+  const viewHtml = (c, tags) => `
+      <div class="content-box">${c.title ? `<div class="content-title">${escapeHtml(c.title)}</div>` : ""}${escapeHtml(c.body || "")}
+        ${tags ? `<div class="tags">${escapeHtml(tags)}</div>` : ""}</div>
+      <div class="actions">
+        <button data-act="copy-body">본문 복사</button>
+        ${c.title ? '<button data-act="copy-title">제목 복사</button>' : ""}
+        ${tags ? '<button data-act="copy-tags">태그 복사</button>' : ""}
+        <button data-act="copy-all">전체 복사</button>
+        ${serverOn ? '<button data-act="edit">✏️ 편집</button>' : ""}
+        ${serverOn && active === "instagram" && d.status?.instagram !== "uploaded"
+          ? '<button class="primary" data-act="upload-ig">인스타그램 업로드</button>' : ""}
+      </div>
+      ${!serverOn ? '<div class="hint" style="margin-top:10px">✏️ 편집·AI 수정·이미지 재생성은 ⚙️ 서버 연결 후 사용할 수 있습니다.</div>' : ""}`;
+
+  const editHtml = (c, tags) => `
+      <div class="edit-form">
+        <div class="ai-box">
+          <input type="text" id="aiInstruction" placeholder="Claude에게 수정 요청 — 예: 더 짧고 캐주얼하게, 이모지 추가">
+          <button class="primary" data-act="ai-revise">🪄 AI 수정</button>
+        </div>
+        ${active !== "instagram" ? `<label>제목</label>
+        <input type="text" id="editTitle" value="${escapeHtml(c.title || "")}">` : ""}
+        <label>본문</label>
+        <textarea id="editBody">${escapeHtml(c.body || "")}</textarea>
+        <label>해시태그 (공백으로 구분)</label>
+        <input type="text" id="editTags" value="${escapeHtml(tags)}">
+        <div class="actions">
+          <button class="primary" data-act="save">💾 저장</button>
+          <button data-act="cancel">취소</button>
+        </div>
+      </div>`;
+
+  const imgEditHtml = () => {
+    const it = d.image_text || {};
+    return `
+      <div class="img-edit">
+        <div class="field"><label>큰 문구</label>
+          <input type="text" id="imgHeadline" value="${escapeHtml(it.headline || d.topic.slice(0, 15))}" style="width:220px"></div>
+        <div class="field"><label>보조 문구</label>
+          <input type="text" id="imgSubline" value="${escapeHtml(it.subline || "")}" style="width:220px"></div>
+        <div class="field"><label>위 색</label>
+          <input type="color" id="imgColorTop" value="${it.color_top || "#4F46E5"}"></div>
+        <div class="field"><label>아래 색</label>
+          <input type="color" id="imgColorBottom" value="${it.color_bottom || "#0EA5E9"}"></div>
+        <button class="primary" data-act="img-apply">🖼 이미지 다시 만들기</button>
+      </div>`;
+  };
+
   const renderModal = () => {
     const c = d.contents[active] || {};
-    const body = escapeHtml(c.body || "");
     const tags = (c.hashtags || []).map(t => "#" + String(t).replace(/^#/, "")).join(" ");
     const statusLine = Object.entries(d.status || {})
       .map(([k, v]) => `${PLATFORM_LABEL[k] || k}: ${escapeHtml(v)}`).join(" · ");
@@ -289,32 +362,94 @@ function openDetail(index) {
       <button class="close" title="닫기">✕</button>
       <h3>${escapeHtml(d.topic)}</h3>
       <div class="meta">${escapeHtml(d.slug)} · 생성 ${(d.created_at || "").replace("T", " ").slice(0, 16)}</div>
-      ${d.images && d.images.length ? `<img class="preview" src="${rawUrl(d.slug, d.images[0])}" alt="카드 이미지">` : ""}
+      ${d.images && d.images.length ? `
+        <img class="preview" id="cardPreview" src="${imgSrc()}" alt="카드 이미지">
+        ${serverOn ? `<div style="margin:-6px 0 14px">
+          <button data-act="img-toggle">${imgEditing ? "이미지 편집 닫기" : "🖼 이미지 편집"}</button></div>` : ""}
+        ${imgEditing ? imgEditHtml() : ""}` : ""}
       <div class="tabs">${platforms.map(p =>
         `<button class="tab ${p === active ? "active" : ""}" data-p="${p}">${PLATFORM_LABEL[p] || p}</button>`).join("")}</div>
-      <div class="content-box">${c.title ? `<div class="content-title">${escapeHtml(c.title)}</div>` : ""}${body}
-        ${tags ? `<div class="tags">${escapeHtml(tags)}</div>` : ""}</div>
-      <div class="actions">
-        <button data-act="copy-body">본문 복사</button>
-        ${c.title ? '<button data-act="copy-title">제목 복사</button>' : ""}
-        ${tags ? '<button data-act="copy-tags">태그 복사</button>' : ""}
-        <button data-act="copy-all">전체 복사</button>
-        ${serverOn && active === "instagram" && d.status?.instagram !== "uploaded"
-          ? '<button class="primary" data-act="upload-ig">인스타그램 업로드</button>' : ""}
-      </div>
+      ${editing ? editHtml(c, tags) : viewHtml(c, tags)}
       <div class="status-line">${statusLine}</div>`;
+
     modal.querySelector(".close").onclick = () => overlay.remove();
-    modal.querySelectorAll(".tab").forEach(b => b.onclick = () => { active = b.dataset.p; renderModal(); });
-    modal.querySelectorAll("[data-act]").forEach(b => b.onclick = () => {
-      const cc = d.contents[active] || {};
-      const tg = (cc.hashtags || []).map(t => "#" + String(t).replace(/^#/, "")).join(" ");
-      if (b.dataset.act === "copy-body") copy(cc.body || "");
-      if (b.dataset.act === "copy-title") copy(cc.title || "");
-      if (b.dataset.act === "copy-tags") copy(tg);
-      if (b.dataset.act === "copy-all") copy([cc.title, cc.body, tg].filter(Boolean).join("\n\n"));
-      if (b.dataset.act === "upload-ig") uploadInstagram(d, b);
+    modal.querySelectorAll(".tab").forEach(b => b.onclick = () => {
+      if (editing && !confirm("편집 중인 내용이 사라집니다. 탭을 이동할까요?")) return;
+      editing = false; active = b.dataset.p; renderModal();
     });
+    modal.querySelectorAll("[data-act]").forEach(b => b.onclick = () => handleAction(b));
   };
+
+  async function handleAction(b) {
+    const act = b.dataset.act;
+    const c = d.contents[active] || {};
+    const tags = (c.hashtags || []).map(t => "#" + String(t).replace(/^#/, "")).join(" ");
+    if (act === "copy-body") return copy(c.body || "");
+    if (act === "copy-title") return copy(c.title || "");
+    if (act === "copy-tags") return copy(tags);
+    if (act === "copy-all") return copy([c.title, c.body, tags].filter(Boolean).join("\n\n"));
+    if (act === "upload-ig") return uploadInstagram(d, b);
+    if (act === "edit") { editing = true; return renderModal(); }
+    if (act === "cancel") { editing = false; return renderModal(); }
+    if (act === "img-toggle") { imgEditing = !imgEditing; return renderModal(); }
+
+    if (act === "save") {
+      b.disabled = true; b.textContent = "저장 중...";
+      try {
+        const payload = { contents: {} };
+        payload.contents[active] = {
+          title: modal.querySelector("#editTitle")?.value || "",
+          body: modal.querySelector("#editBody").value,
+          hashtags: modal.querySelector("#editTags").value.split(/[\s,]+/).filter(Boolean),
+        };
+        const res = await api(`/api/drafts/${encodeURIComponent(d.slug)}`, payload, "PUT");
+        Object.assign(d, res.post);          // 목록 데이터도 갱신
+        editing = false;
+        toast(res.message);
+        render(); renderModal();
+      } catch (e) { toast("저장 실패: " + e.message); b.disabled = false; b.textContent = "💾 저장"; }
+      return;
+    }
+
+    if (act === "ai-revise") {
+      const instruction = modal.querySelector("#aiInstruction").value.trim();
+      if (!instruction) return toast("수정 지시를 입력하세요 (예: 더 짧게)");
+      b.disabled = true; b.innerHTML = '<span class="spin"></span> 수정 중...';
+      try {
+        // 현재 편집창의 내용 기준이 아니라 저장본 기준으로 수정 요청
+        const res = await api(`/api/drafts/${encodeURIComponent(d.slug)}/revise`,
+          { platform: active, instruction });
+        const r = res.revised;
+        if (modal.querySelector("#editTitle")) modal.querySelector("#editTitle").value = r.title || "";
+        modal.querySelector("#editBody").value = r.body || "";
+        modal.querySelector("#editTags").value = (r.hashtags || []).map(t => "#" + t).join(" ");
+        toast("Claude 수정안을 채웠습니다 — 확인 후 💾 저장을 누르세요");
+      } catch (e) { toast("AI 수정 실패: " + e.message); }
+      b.disabled = false; b.textContent = "🪄 AI 수정";
+      return;
+    }
+
+    if (act === "img-apply") {
+      b.disabled = true; b.innerHTML = '<span class="spin"></span> 생성 중...';
+      try {
+        const res = await api(`/api/drafts/${encodeURIComponent(d.slug)}/image`, {
+          headline: modal.querySelector("#imgHeadline").value,
+          subline: modal.querySelector("#imgSubline").value,
+          color_top: modal.querySelector("#imgColorTop").value,
+          color_bottom: modal.querySelector("#imgColorBottom").value,
+        });
+        d.image_text = res.image_text;
+        imgBust = Date.now();
+        toast(res.message);
+        renderModal(); render();
+      } catch (e) {
+        toast("이미지 생성 실패: " + e.message);
+        b.disabled = false; b.textContent = "🖼 이미지 다시 만들기";
+      }
+      return;
+    }
+  }
+
   renderModal();
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
@@ -339,9 +474,9 @@ async function checkServer() {
   $("generatePanel").classList.toggle("hidden", !serverOn);
 }
 
-async function api(path, body) {
+async function api(path, body, method = "POST") {
   const r = await fetch(apiBase + path, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json", "X-Admin-Password": apiPw },
     body: JSON.stringify(body || {}),
   });
