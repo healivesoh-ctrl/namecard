@@ -135,7 +135,10 @@ def test_alimtalk_queued_on_submit(client):
     assert n["phone"] == "010-2345-7788"
     assert "김서연" in n["body"] and app["code"] in n["body"]
     assert "산모신생아건강관리사 교육수료증" in n["body"]   # 아직 안 낸 서류를 알려준다
-    assert "친구를 삭제" in n["body"]                      # 친구 유지 안내
+    # 채널은 "삭제하면 못 받는다"가 아니라 "진행 상황을 보는 창구"로 안내한다
+    assert "카카오톡에서 바로 확인" in n["body"]
+    assert "1년간 유지" in n["body"]
+    assert "삭제" not in n["body"]
 
 
 def test_alimtalk_sent_at_every_stage(client):
@@ -277,3 +280,84 @@ def test_brand_defaults_and_update(client):
 def test_notifications_require_admin(client):
     assert client.get("/api/admin/notifications").status_code == 401
     assert client.put("/api/admin/brand", json={}).status_code == 401
+
+
+# ── 카카오톡에서 진행 조회 (알림톡 버튼) ────────────────────
+
+def test_status_link_button_is_sent_when_public_url_set(client, monkeypatch):
+    """접수 후 카톡 메시지의 버튼으로 바로 조회 화면이 열려야 한다."""
+    import requests
+    import server.notify as n
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://care.example.kr/")
+    monkeypatch.setenv("ALIMTALK_MODE", "webhook")
+    monkeypatch.setenv("ALIMTALK_WEBHOOK_URL", "https://example.test/send")
+
+    calls = []
+
+    class Res:
+        status_code = 200
+        text = "ok"
+
+    monkeypatch.setattr(requests, "post",
+                        lambda url, json=None, headers=None, timeout=None: (calls.append(json), Res())[1])
+
+    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    assert n.flush(timeout=10)
+
+    button = calls[0]["button"]
+    assert button["name"] == "진행상황 확인하기"
+    assert button["type"] == "WL"
+    assert button["url"] == (
+        "https://care.example.kr/status.html?code=" + app["code"] + "&token=" + app["token"])
+
+
+def test_no_button_without_public_url(client, monkeypatch):
+    """주소가 설정되지 않았으면 깨진 버튼을 붙이지 않는다."""
+    import requests
+    import server.notify as n
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
+    monkeypatch.setenv("ALIMTALK_MODE", "webhook")
+    monkeypatch.setenv("ALIMTALK_WEBHOOK_URL", "https://example.test/send")
+
+    calls = []
+
+    class Res:
+        status_code = 200
+        text = "ok"
+
+    monkeypatch.setattr(requests, "post",
+                        lambda url, json=None, headers=None, timeout=None: (calls.append(json), Res())[1])
+    client.post("/api/applications", json={**FORM, "submit": True})
+    assert n.flush(timeout=10)
+    assert "button" not in calls[0]
+
+
+def test_rejection_button_points_at_document_upload(client, monkeypatch):
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://care.example.kr")
+    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    client.post(f"/api/admin/applications/{app['code']}/status", headers=ADMIN, json={
+        "status": "rejected", "message": "서류를 보완해 주세요.", "missing_docs": ["pertussis"]})
+    _notify()
+    item = client.get(f"/api/admin/notifications?code={app['code']}", headers=ADMIN).json()["items"][0]
+    assert item["link"].startswith("https://care.example.kr/status.html?code=")
+    assert "아래 버튼에서 부족한 서류만" in item["body"]
+
+
+def test_every_stage_template_has_a_button(client):
+    """모든 단계 메시지에서 카톡으로 진행 상황을 열 수 있어야 한다."""
+    data = client.get("/api/admin/notifications", headers=ADMIN).json()
+    for t in data["templates"]:
+        if t["key"] == "consult":
+            continue          # 전화상담은 접수번호가 없어 조회 대상이 아니다
+        assert t["button"], f"{t['key']} 에 버튼이 없습니다"
+
+
+def test_confirmed_message_invites_keeping_the_channel(client):
+    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    client.post(f"/api/admin/applications/{app['code']}/status", headers=ADMIN,
+                json={"status": "confirmed", "message": "확인 완료"})
+    _notify()
+    body = client.get(f"/api/admin/notifications?code={app['code']}",
+                      headers=ADMIN).json()["items"][0]["body"]
+    assert "채널은 그대로 두시면" in body
+    assert "삭제" not in body and "미적용" not in body

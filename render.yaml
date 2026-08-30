@@ -55,3 +55,5 @@ services:
         sync: false
       - key: ALIMTALK_TEMPLATE_IDS         # 예: {"received":"TPL_01"}
         sync: false
+      - key: PUBLIC_BASE_URL               # 알림톡 '진행상황 확인' 버튼이 열 주소
+        sync: false

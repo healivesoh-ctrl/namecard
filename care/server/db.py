@@ -116,7 +116,7 @@ DEFAULT_BRAND = {
     "tagline": "직접 신청해서, 친정엄마 급여를 가장 높게",
     "channel_name": "다이음",
     "channel_url": "",
-    "event_notice": "카카오채널 친구추가를 하지 않거나 친구를 삭제하시면 이벤트 혜택이 적용되지 않습니다.",
+    "event_notice": "이벤트 혜택은 다이음 채널을 친구추가하고 1년간 유지해 주시는 분께 적용됩니다.",
     "updated_at": "",
 }
 
@@ -198,6 +198,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     phone          TEXT NOT NULL DEFAULT '',
     title          TEXT NOT NULL DEFAULT '',
     body           TEXT NOT NULL DEFAULT '',
+    link           TEXT NOT NULL DEFAULT '',
     status         TEXT NOT NULL DEFAULT 'queued',
     detail         TEXT NOT NULL DEFAULT '',
     created_at     TEXT NOT NULL,
@@ -252,6 +253,7 @@ ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("applications", "kakao_friend", "INTEGER NOT NULL DEFAULT 0"),
     ("applications", "kakao_verified", "TEXT NOT NULL DEFAULT ''"),
     ("applications", "event_applied", "INTEGER NOT NULL DEFAULT 0"),
+    ("notifications", "link", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 

@@ -388,7 +388,7 @@
       (a.event_applied ? '<span class="badge ok">이벤트 적용</span>'
                        : '<span class="badge bad">이벤트 미적용</span>') +
       '</div><div class="doc-desc">채널 관리자센터에서 친구 여부를 확인한 뒤 아래를 눌러주세요. ' +
-      '친구를 삭제한 경우 이벤트 대상에서 빠집니다.</div>' +
+      '이벤트는 친구추가 후 1년 유지가 조건입니다.</div>' +
       '<div class="file-row"><button class="small" data-kakao="yes">친구 확인됨 · 이벤트 적용</button>' +
       '<button class="small danger" data-kakao="no">친구 아님 · 이벤트 제외</button>' +
       '<button class="small" data-kakao="">확인 대기로</button></div></div>';
@@ -576,7 +576,9 @@
         ["대기 중", String(data.pending)],
         ["마지막 발송", data.last_sent ? Care.fmtDate(data.last_sent) : "-"],
         ["마지막 오류", data.last_error ? '<span class="small" style="color:var(--red)">' +
-          E(data.last_error) + "</span>" : "없음"]
+          E(data.last_error) + "</span>" : "없음"],
+        ["조회 버튼 주소", data.public_base ? E(data.public_base)
+          : '<span class="badge bad">PUBLIC_BASE_URL 미설정 — 카톡 메시지에 조회 버튼이 붙지 않습니다</span>']
       ];
       el("noti-state").innerHTML = '<dl class="kv">' + rows.map(function (r) {
         return "<dt>" + E(r[0]) + "</dt><dd>" + r[1] + "</dd>";
@@ -597,7 +599,8 @@
       el("noti-templates").innerHTML = data.templates.map(function (t) {
         return '<div class="doc-item"><div class="doc-head"><span class="t">' + E(t.title) + "</span>" +
           '<span class="badge">' + E(t.key) + "</span></div>" +
-          '<div class="doc-desc">발송 시점: ' + E(t.when) + "</div>" +
+          '<div class="doc-desc">발송 시점: ' + E(t.when) +
+          (t.button ? ' · 버튼: <span class="badge info">' + E(t.button) + "</span>" : "") + "</div>" +
           '<div class="doc-desc" style="white-space:pre-wrap; background:var(--gray-soft); ' +
           'padding:10px 12px; border-radius:8px; margin-top:8px">' + E(t.body) + "</div></div>";
       }).join("");

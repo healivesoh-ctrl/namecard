@@ -39,11 +39,13 @@ TEMPLATES: dict[str, dict] = {
             "{mother_name} 산모님, 신청이 접수되었습니다.\n"
             "접수번호: {code}\n"
             "산후도우미: {helper_name}\n\n"
-            "아직 올리지 않은 서류: {missing}\n"
-            "아래 버튼에서 서류를 이어서 올리실 수 있습니다.\n\n"
-            "※ 진행 안내는 이 채널로만 발송됩니다. 친구를 삭제하시면 안내를 받으실 수 없고 "
-            "이벤트 혜택도 적용되지 않습니다."
+            "아직 올리지 않은 서류: {missing}\n\n"
+            "이제부터 진행 상황은 카카오톡에서 바로 확인하실 수 있습니다.\n"
+            "아래 버튼을 누르면 서류가 어디까지 검토됐는지, 무엇이 더 필요한지 언제든 보실 수 있어요.\n\n"
+            "채널을 그대로 두시면 매달 바뀌는 친정엄마 급여와 새 이벤트 소식도 먼저 받아보실 수 있습니다.\n"
+            "(이벤트 혜택은 친구추가 후 1년간 유지해 주시는 분께 적용됩니다.)"
         ),
+        "button": "진행상황 확인하기",
     },
     "reviewing": {
         "title": "서류 검토를 시작했습니다",
@@ -52,8 +54,9 @@ TEMPLATES: dict[str, dict] = {
             "[다이음 다이렉트] 서류 검토중\n\n"
             "{mother_name} 산모님, 제출하신 서류를 확인하고 있습니다.\n"
             "접수번호: {code}\n\n"
-            "결과가 나오면 이 채널로 알려드립니다."
+            "결과가 나오면 이 채널로 알려드립니다. 지금 상태는 아래 버튼에서 확인하실 수 있어요."
         ),
+        "button": "진행상황 확인하기",
     },
     "rejected": {
         "title": "보완이 필요합니다",
@@ -64,9 +67,10 @@ TEMPLATES: dict[str, dict] = {
             "접수번호: {code}\n"
             "부족한 서류: {missing}\n\n"
             "안내: {message}\n\n"
-            "부족한 서류만 추가로 올리신 뒤 다시 제출해 주세요. "
+            "아래 버튼에서 부족한 서류만 추가로 올리신 뒤 다시 제출해 주세요. "
             "처음부터 다시 작성하실 필요는 없습니다."
         ),
+        "button": "부족한 서류 올리기",
     },
     "confirmed": {
         "title": "최종확인이 완료되었습니다",
@@ -76,8 +80,10 @@ TEMPLATES: dict[str, dict] = {
             "{mother_name} 산모님, 모든 서류가 확인되었습니다.\n"
             "접수번호: {code}\n\n"
             "이후 근로계약 체결과 제공기록지 작성은 기존 다이음 시스템에서 그대로 진행됩니다. "
-            "담당자가 일정 안내를 위해 연락드립니다."
+            "담당자가 일정 안내를 위해 연락드립니다.\n\n"
+            "채널은 그대로 두시면 다음 이용 안내와 이벤트 소식을 계속 받아보실 수 있습니다."
         ),
+        "button": "접수 내용 다시 보기",
     },
     "consult": {
         "title": "전화상담 신청이 접수되었습니다",
@@ -115,6 +121,18 @@ def webhook_url() -> str:
     return (os.environ.get("ALIMTALK_WEBHOOK_URL") or "").strip()
 
 
+def public_base() -> str:
+    """알림톡 버튼이 열 주소의 기준. 예: https://care.dayeum.co.kr"""
+    return (os.environ.get("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+
+
+def status_link(code: str, token: str) -> str:
+    base = public_base()
+    if not (base and code and token):
+        return ""
+    return f"{base}/status.html?code={code}&token={token}"
+
+
 def template_ids() -> dict:
     raw = (os.environ.get("ALIMTALK_TEMPLATE_IDS") or "").strip()
     if not raw:
@@ -148,6 +166,7 @@ class _Blank(dict):
 
 def _application_values(app: dict, missing_labels: list[str]) -> dict:
     return {
+        "link": status_link(app.get("code", ""), app.get("token", "")),
         "code": app.get("code", ""),
         "mother_name": app.get("mother_name", ""),
         "helper_name": app.get("helper_name", ""),
@@ -175,6 +194,10 @@ def _send_webhook(row: dict) -> tuple[str, str]:
         "title": row["title"],
         "text": row["body"],
     }
+    button = TEMPLATES.get(row["template_key"], {}).get("button")
+    if button and row["link"]:
+        # 알림톡 웹링크 버튼 — 카카오톡에서 바로 조회 화면이 열린다
+        payload["button"] = {"name": button, "type": "WL", "url": row["link"]}
     headers = {"Content-Type": "application/json"}
     secret = (os.environ.get("ALIMTALK_WEBHOOK_SECRET") or "").strip()
     if secret:
@@ -240,9 +263,9 @@ def _ensure_worker() -> None:
 def _record(conn, app_id: int | None, template_key: str, phone: str, values: dict) -> int:
     title, body = render(template_key, values)
     cur = conn.execute(
-        "INSERT INTO notifications(application_id, template_key, phone, title, body, created_at)"
-        " VALUES(?,?,?,?,?,?)",
-        (app_id, template_key, phone, title, body, db.now()),
+        "INSERT INTO notifications(application_id, template_key, phone, title, body, link, created_at)"
+        " VALUES(?,?,?,?,?,?,?)",
+        (app_id, template_key, phone, title, body, values.get("link", ""), db.now()),
     )
     return int(cur.lastrowid)
 
@@ -292,8 +315,10 @@ def status() -> dict:
         "webhook_set": bool(webhook_url()),
         "template_ids": sorted(template_ids().keys()),
         "pending": _QUEUE.unfinished_tasks,
+        "public_base": public_base(),
         "templates": [
-            {"key": k, "title": v["title"], "when": v["when"], "body": v["body"]}
+            {"key": k, "title": v["title"], "when": v["when"], "body": v["body"],
+             "button": v.get("button", "")}
             for k, v in TEMPLATES.items()
         ],
         **_STATE,
