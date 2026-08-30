@@ -33,6 +33,7 @@
       <button class="primary" data-tab="apps">신청 관리</button>
       <button data-tab="consults">전화상담</button>
       <button data-tab="pay">친정엄마 소득 설정</button>
+      <button data-tab="sync">구글 시트 연동</button>
     </div>
 
     <!-- 신청 관리 -->
@@ -133,6 +134,24 @@
         </div>
       </section>
     </section>
+
+    <!-- 구글 시트·드라이브 연동 -->
+    <section id="tab-sync" class="hidden">
+      <section class="panel">
+        <h2>구글 시트 · 드라이브 백업</h2>
+        <p class="lead">신청 정보는 구글 시트에, 업로드한 서류 원본은 구글 드라이브에 자동으로 복사됩니다.
+          서버가 초기화돼도 접수 내용과 서류가 남습니다.</p>
+        <div id="sync-state"></div>
+        <div class="btn-row" style="margin-top:14px">
+          <button id="sync-refresh">상태 새로고침</button>
+          <button class="primary" id="sync-all">전체 동기화</button>
+        </div>
+        <p class="small muted" style="margin-top:10px">
+          전체 동기화는 지금까지의 모든 신청·상담을 시트에 다시 기록하고, 아직 드라이브에 올라가지 않은
+          서류를 올립니다. 연동을 나중에 켰거나 시트를 새로 만들었을 때 사용하세요.
+        </p>
+      </section>
+    </section>
   </div>
 </div>
 
@@ -173,6 +192,7 @@
     Care.api("/api/info").then(function (info) { DOC_TYPES = info.documents || []; loadList(); });
     loadPay();
     loadConsults();
+    loadSync();
   }
 
   // ── 탭 ──
@@ -180,7 +200,7 @@
     btn.onclick = function () {
       document.querySelectorAll("[data-tab]").forEach(function (b) { b.classList.remove("primary"); });
       btn.classList.add("primary");
-      ["apps", "consults", "pay"].forEach(function (t) {
+      ["apps", "consults", "pay", "sync"].forEach(function (t) {
         el("tab-" + t).classList.toggle("hidden", t !== btn.dataset.tab);
       });
     };
@@ -402,6 +422,36 @@
       }
     }).then(function () { Care.toast("저장했습니다. 메인 화면에 바로 반영됩니다."); loadPay(); })
       .catch(function (e) { Care.toast(e.message, true); });
+  };
+
+  // ── 구글 시트 연동 ──
+  function loadSync() {
+    adminApi("/api/admin/sync").then(function (st) {
+      const rows = [
+        ["연동 상태", st.enabled ? '<span class="badge ok">사용중</span>'
+                                 : '<span class="badge warn">꺼짐 — 서버 환경변수 미설정</span>'],
+        ["드라이브 서류 백업", st.drive_enabled ? '<span class="badge ok">사용중</span>'
+                                              : '<span class="badge">꺼짐 (GDRIVE_FOLDER_ID 미설정)</span>'],
+        ["스프레드시트", st.sheet_url ? '<a href="' + E(st.sheet_url) + '" target="_blank" rel="noopener">시트 열기 →</a>' : "-"],
+        ["대기 중", String(st.pending)],
+        ["성공 / 실패", st.synced + "건 / " + st.failed + "건"],
+        ["마지막 성공", st.last_ok ? Care.fmtDate(st.last_ok) : "-"],
+        ["마지막 오류", st.last_error ? '<span class="small" style="color:var(--red)">' + E(st.last_error) + "</span>" : "없음"]
+      ];
+      el("sync-state").innerHTML = '<dl class="kv">' + rows.map(function (r) {
+        return "<dt>" + E(r[0]) + "</dt><dd>" + r[1] + "</dd>";
+      }).join("") + "</dl>";
+      el("sync-all").disabled = !st.enabled;
+    }).catch(function (e) { Care.toast(e.message, true); });
+  }
+  el("sync-refresh").onclick = loadSync;
+  el("sync-all").onclick = function () {
+    el("sync-all").disabled = true;
+    adminApi("/api/admin/sync", { method: "POST" }).then(function (r) {
+      Care.toast("신청 " + r.queued.applications + "건, 상담 " + r.queued.consultations +
+                 "건, 서류 " + r.queued.documents + "건을 동기화합니다.");
+      setTimeout(loadSync, 1500);
+    }).catch(function (e) { Care.toast(e.message, true); el("sync-all").disabled = false; });
   };
 
   if (pw) {

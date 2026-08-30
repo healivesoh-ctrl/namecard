@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS documents (
     size           INTEGER NOT NULL DEFAULT 0,
     status         TEXT NOT NULL DEFAULT 'uploaded',
     reject_reason  TEXT NOT NULL DEFAULT '',
+    drive_url      TEXT NOT NULL DEFAULT '',
     uploaded_at    TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_doc_app ON documents(application_id);
@@ -168,9 +169,23 @@ def db():
         conn.close()
 
 
+# 이미 만들어진 DB에 나중에 추가된 컬럼 — 있으면 넘어간다.
+ADDED_COLUMNS: list[tuple[str, str, str]] = [
+    ("documents", "drive_url", "TEXT NOT NULL DEFAULT ''"),
+]
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    for table, column, decl in ADDED_COLUMNS:
+        existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
 def init() -> None:
     with db() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         if conn.execute("SELECT 1 FROM settings WHERE key='pay'").fetchone() is None:
             conn.execute(
                 "INSERT INTO settings(key, value) VALUES('pay', ?)",

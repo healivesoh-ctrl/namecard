@@ -37,3 +37,11 @@ services:
       # 유료 플랜에서 디스크를 /data 에 마운트하면 그대로 유지된다(Dockerfile 기본값 DATA_DIR=/data).
       - key: DATA_DIR
         value: /data
+      # 구글 시트·드라이브 백업 (선택) — 켜두면 free 플랜에서 서버가 초기화돼도
+      # 접수 내용은 시트에, 서류 원본은 드라이브에 남는다. care/README.md 참고.
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON   # 서비스 계정 키 JSON 전체
+        sync: false
+      - key: GSHEET_ID                     # 스프레드시트 ID
+        sync: false
+      - key: GDRIVE_FOLDER_ID              # 서류 저장용 드라이브 폴더 ID
+        sync: false

@@ -36,7 +36,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import db
+from . import db, gsync
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "12")) * 1024 * 1024
@@ -96,8 +96,8 @@ def _row_to_app(row) -> dict:
 
 def _docs_of(conn, app_id: int) -> list[dict]:
     rows = conn.execute(
-        "SELECT id, doc_type, filename, content_type, size, status, reject_reason, uploaded_at "
-        "FROM documents WHERE application_id=? ORDER BY uploaded_at",
+        "SELECT id, doc_type, filename, content_type, size, status, reject_reason, drive_url,"
+        " uploaded_at FROM documents WHERE application_id=? ORDER BY uploaded_at",
         (app_id,),
     ).fetchall()
     out = []
@@ -249,6 +249,7 @@ def create_application(payload: ApplicationIn, request: Request):
             db.add_event(conn, app_id, "received", "접수가 자동 승인되었습니다. 서류 검토 전까지 서류를 추가할 수 있습니다.")
         row = conn.execute("SELECT * FROM applications WHERE id=?", (app_id,)).fetchone()
         data = _detail(conn, row)
+    gsync.queue_application(code)
     data["token"] = token
     return data
 
@@ -301,7 +302,9 @@ def update_application(code: str, payload: ApplicationIn, token: str = Query(def
         )
         db.add_event(conn, row["id"], "updated", "신청 정보가 수정되었습니다.", actor="신청자")
         row = conn.execute("SELECT * FROM applications WHERE id=?", (row["id"],)).fetchone()
-        return _detail(conn, row)
+        detail = _detail(conn, row)
+    gsync.queue_application(row["code"])
+    return detail
 
 
 @app.post("/api/applications/{code}/submit")
@@ -325,7 +328,9 @@ def submit_application(code: str, token: str = Query(default="")):
             actor="신청자",
         )
         row = conn.execute("SELECT * FROM applications WHERE id=?", (row["id"],)).fetchone()
-        return _detail(conn, row)
+        detail = _detail(conn, row)
+    gsync.queue_application(row["code"])
+    return detail
 
 
 # ── 서류 업로드 ──────────────────────────────────────────────
@@ -356,7 +361,7 @@ async def upload_document(
         target_dir = db.UPLOAD_DIR / row["code"]
         target_dir.mkdir(parents=True, exist_ok=True)
         (target_dir / stored).write_bytes(content)
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO documents(application_id, doc_type, filename, stored_name, content_type, size,"
             " uploaded_at) VALUES(?,?,?,?,?,?,?)",
             (
@@ -364,10 +369,14 @@ async def upload_document(
                 file.content_type or "", len(content), db.now(),
             ),
         )
+        doc_id = int(cur.lastrowid)
         db.add_event(conn, row["id"], "document", f"{db.DOC_LABELS[doc_type]} 서류를 올렸습니다.", actor="신청자")
         conn.execute("UPDATE applications SET updated_at=? WHERE id=?", (db.now(), row["id"]))
         row = conn.execute("SELECT * FROM applications WHERE id=?", (row["id"],)).fetchone()
-        return _detail(conn, row)
+        detail = _detail(conn, row)
+    gsync.queue_document(doc_id)      # 드라이브 업로드 후 신청 행까지 갱신된다
+    gsync.queue_application(row["code"])
+    return detail
 
 
 @app.delete("/api/applications/{code}/documents/{doc_id}")
@@ -385,7 +394,9 @@ def delete_document(code: str, doc_id: int, token: str = Query(default="")):
         conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
         db.add_event(conn, row["id"], "document", f"{db.DOC_LABELS.get(doc['doc_type'], '')} 서류를 삭제했습니다.", actor="신청자")
         row = conn.execute("SELECT * FROM applications WHERE id=?", (row["id"],)).fetchone()
-        return _detail(conn, row)
+        detail = _detail(conn, row)
+    gsync.queue_application(row["code"])
+    return detail
 
 
 def _serve_document(conn, row, doc_id: int) -> Response:
@@ -431,13 +442,15 @@ def create_consultation(payload: ConsultationIn, request: Request):
     if not db.phone_digits(payload.phone):
         raise HTTPException(400, "연락처를 정확히 입력해 주세요.")
     with db.db() as conn:
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO consultations(name, phone, preferred_time, memo, created_at) VALUES(?,?,?,?,?)",
             (
                 payload.name.strip(), db.normalize_phone(payload.phone),
                 payload.preferred_time.strip(), payload.memo.strip(), db.now(),
             ),
         )
+        cid = int(cur.lastrowid)
+    gsync.queue_consultation(cid)
     return {"ok": True, "message": "전화상담 신청이 접수되었습니다. 담당자가 순차적으로 연락드립니다."}
 
 
@@ -525,7 +538,9 @@ def admin_set_status(code: str, payload: StatusIn, _: str = Depends(require_admi
             text = f"{db.STATUS_LABELS[payload.status]}" + (f" — {payload.message.strip()}" if payload.message.strip() else "")
         db.add_event(conn, row["id"], payload.status, text.strip(), actor="다이음 관리자")
         row = conn.execute("SELECT * FROM applications WHERE id=?", (row["id"],)).fetchone()
-        return _detail(conn, row)
+        detail = _detail(conn, row)
+    gsync.queue_application(row["code"])
+    return detail
 
 
 class DocReviewIn(BaseModel):
@@ -550,7 +565,9 @@ def admin_review_document(doc_id: int, payload: DocReviewIn, _: str = Depends(re
         message = f"{label} — {verb}" + (f": {payload.reason.strip()}" if payload.reason.strip() else "")
         db.add_event(conn, doc["application_id"], "document_review", message, actor="다이음 관리자")
         row = conn.execute("SELECT * FROM applications WHERE id=?", (doc["application_id"],)).fetchone()
-        return _detail(conn, row)
+        detail = _detail(conn, row)
+    gsync.queue_application(row["code"])
+    return detail
 
 
 class PayIn(BaseModel):
@@ -593,6 +610,22 @@ def admin_set_pay(payload: PayIn, _: str = Depends(require_admin)):
     return value
 
 
+@app.get("/api/admin/sync")
+def admin_sync_status(_: str = Depends(require_admin)):
+    """구글 시트·드라이브 연동 상태."""
+    return gsync.status()
+
+
+@app.post("/api/admin/sync")
+def admin_sync_all(_: str = Depends(require_admin)):
+    """DB 전체를 시트로 다시 밀어 넣는다 (연동을 나중에 켰거나 시트를 새로 만든 경우)."""
+    try:
+        queued = gsync.sync_all()
+    except RuntimeError as exc:
+        raise HTTPException(400, str(exc))
+    return {"ok": True, "queued": queued, **gsync.status()}
+
+
 @app.get("/api/admin/consultations")
 def admin_consultations(_: str = Depends(require_admin)):
     with db.db() as conn:
@@ -616,6 +649,7 @@ def admin_update_consultation(cid: int, payload: ConsultUpdateIn, _: str = Depen
         )
         if cur.rowcount == 0:
             raise HTTPException(404, "상담 신청을 찾을 수 없습니다.")
+    gsync.queue_consultation(cid)
     return {"ok": True}
 
 
