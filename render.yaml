@@ -22,3 +22,18 @@ services:
         sync: false
       - key: IG_USER_ID          # 인스타그램 업로드 (선택)
         sync: false
+
+  # 친정엄마 산모신생아건강관리사 신청 시스템
+  - type: web
+    name: chinjeong-care
+    runtime: docker
+    plan: free
+    dockerfilePath: ./care/Dockerfile
+    dockerContext: ./care
+    envVars:
+      - key: ADMIN_PASSWORD   # 관리자 화면(/admin.html) 비밀번호 (필수)
+        sync: false
+      # free 플랜에는 영구 디스크가 없어 재시작 시 데이터가 사라진다.
+      # 유료 플랜에서 디스크를 /data 에 마운트하면 그대로 유지된다(Dockerfile 기본값 DATA_DIR=/data).
+      - key: DATA_DIR
+        value: /data

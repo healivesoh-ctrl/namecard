@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>신청서 작성 | 친정엄마 산모신생아건강관리사</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A4%B1%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <a class="brand" href="./">다이음 <span>친정엄마</span></a>
+    <div class="spacer"></div>
+    <a class="nav" href="status.html">내 신청 조회</a>
+  </div>
+
+  <section class="panel">
+    <h1 id="page-title">신청서 작성</h1>
+    <p class="lead" id="page-lead">
+      서류는 접수 후에 올려도 됩니다. 지금은 아래 정보만 입력해 주세요.
+      <br>바로 접수하기 어려우면 <strong>임시저장</strong>해두고 나중에 이어서 작성할 수 있습니다.
+    </p>
+
+    <div class="notice info" id="required-note">
+      <strong>필수 입력</strong>
+      산모 이름 · 산모 연락처 · 산후도우미 이름 · 산후도우미 연락처 · 출산예정일
+    </div>
+
+    <form id="form">
+      <div class="two-col">
+        <label class="field"><span class="lbl">산모 이름<em>*</em></span>
+          <input name="mother_name" maxlength="40" placeholder="예: 김산모" autocomplete="off"></label>
+        <label class="field"><span class="lbl">산모 연락처<em>*</em></span>
+          <input name="mother_phone" inputmode="numeric" maxlength="13" placeholder="010-0000-0000"></label>
+      </div>
+
+      <label class="field"><span class="lbl">산모와 산후도우미의 관계<em>*</em></span>
+        <div class="chips" id="relation-chips">
+          <div class="chip on" data-value="가족">가족관계</div>
+          <div class="chip" data-value="지인">지인관계</div>
+        </div>
+        <input type="hidden" name="helper_relation" value="가족">
+        <input name="relation_detail" maxlength="40" placeholder="예: 친정어머니 / 시어머니 / 언니 / 이웃" style="margin-top:8px">
+        <div class="help">구체적인 관계를 적어주시면 서류 검토가 빨라집니다. (선택)</div>
+      </label>
+
+      <div class="two-col">
+        <label class="field"><span class="lbl">산후도우미 이름<em>*</em></span>
+          <input name="helper_name" maxlength="40" placeholder="예: 이도우미" autocomplete="off"></label>
+        <label class="field"><span class="lbl">산후도우미 연락처<em>*</em></span>
+          <input name="helper_phone" inputmode="numeric" maxlength="13" placeholder="010-0000-0000"></label>
+      </div>
+
+      <label class="field"><span class="lbl">출산예정일<em>*</em></span>
+        <input name="due_date" type="date">
+        <div class="help">이미 출산하셨다면 실제 출산일을 입력해 주세요.</div></label>
+
+      <label class="field"><span class="lbl">이용예정기간<em>*</em></span>
+        <div class="chips" id="days-chips"></div>
+        <input type="hidden" name="service_days" value="15">
+        <div class="help">기본 15일입니다. 정부지원 유형에 따라 조정될 수 있습니다.</div></label>
+
+      <label class="field"><span class="lbl">보건소 지정 최종이용코드</span>
+        <input name="health_center_code" maxlength="40" placeholder="모르면 비워두고 넘어가세요">
+        <div class="help">보건소에서 받은 이용권 코드입니다. 지금 모르셔도 접수에는 문제가 없고, 나중에 추가 입력할 수 있습니다.</div></label>
+
+      <label class="field"><span class="lbl">추가로 남길 말씀</span>
+        <textarea name="memo" maxlength="1000" placeholder="문의사항이나 참고할 내용이 있으면 적어주세요 (선택)"></textarea></label>
+
+      <div class="btn-row">
+        <button class="primary" type="button" id="btn-submit">접수하기 (자동 승인)</button>
+        <button type="button" id="btn-draft">임시저장만 하기</button>
+      </div>
+      <p class="small muted" style="margin-top:10px">
+        접수하면 접수번호와 조회코드가 발급되고, 곧바로 서류를 올릴 수 있는 화면으로 이동합니다.
+      </p>
+    </form>
+  </section>
+</div>
+
+<script src="app.js"></script>
+<script>
+(function () {
+  const form = document.getElementById("form");
+  const code = Care.qs("code"), token = Care.qs("token");
+  const isEdit = !!(code && token);
+
+  Care.bindPhone(form.mother_phone);
+  Care.bindPhone(form.helper_phone);
+
+  // 이용예정기간 칩 (5·10·15·20·25일 이상, 기본 15일)
+  const DAY_OPTIONS = [5, 10, 15, 20, 25];
+  document.getElementById("days-chips").innerHTML = DAY_OPTIONS.map(function (d) {
+    return '<div class="chip' + (d === 15 ? " on" : "") + '" data-value="' + d + '">' +
+           d + (d === 25 ? "일 이상" : "일") + "</div>";
+  }).join("");
+
+  function bindChips(containerId, hiddenName) {
+    const box = document.getElementById(containerId);
+    box.addEventListener("click", function (ev) {
+      const chip = ev.target.closest(".chip");
+      if (!chip) return;
+      box.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("on"); });
+      chip.classList.add("on");
+      form[hiddenName].value = chip.dataset.value;
+    });
+  }
+  bindChips("relation-chips", "helper_relation");
+  bindChips("days-chips", "service_days");
+
+  function selectChip(containerId, value) {
+    document.getElementById(containerId).querySelectorAll(".chip").forEach(function (c) {
+      c.classList.toggle("on", c.dataset.value === String(value));
+    });
+  }
+
+  function payload(submit) {
+    return {
+      mother_name: form.mother_name.value.trim(),
+      mother_phone: form.mother_phone.value.trim(),
+      helper_name: form.helper_name.value.trim(),
+      helper_phone: form.helper_phone.value.trim(),
+      helper_relation: form.helper_relation.value,
+      relation_detail: form.relation_detail.value.trim(),
+      due_date: form.due_date.value,
+      service_days: Number(form.service_days.value) || 15,
+      health_center_code: form.health_center_code.value.trim(),
+      memo: form.memo.value.trim(),
+      submit: !!submit
+    };
+  }
+
+  function goDetail(app) {
+    Care.remember(app);
+    location.href = "status.html?code=" + encodeURIComponent(app.code) +
+                    "&token=" + encodeURIComponent(app.token) + (app.status === "draft" ? "&saved=1" : "&new=1");
+  }
+
+  function send(submit) {
+    const buttons = [document.getElementById("btn-submit"), document.getElementById("btn-draft")];
+    buttons.forEach(function (b) { b.disabled = true; });
+
+    const done = function (app) {
+      if (isEdit) {
+        Care.toast("신청 정보를 수정했습니다.");
+        location.href = "status.html?code=" + encodeURIComponent(code) + "&token=" + encodeURIComponent(token);
+      } else {
+        goDetail(app);
+      }
+    };
+
+    const req = isEdit
+      ? Care.api("/api/applications/" + encodeURIComponent(code) + "?token=" + encodeURIComponent(token),
+                 { method: "PATCH", body: payload(false) })
+          .then(function (app) {
+            if (!submit) return app;
+            return Care.api("/api/applications/" + encodeURIComponent(code) + "/submit?token=" +
+                            encodeURIComponent(token), { method: "POST" });
+          })
+      : Care.api("/api/applications", { method: "POST", body: payload(submit) });
+
+    req.then(done).catch(function (e) { Care.toast(e.message, true); })
+       .finally(function () { buttons.forEach(function (b) { b.disabled = false; }); });
+  }
+
+  document.getElementById("btn-submit").onclick = function () { send(true); };
+  document.getElementById("btn-draft").onclick = function () { send(false); };
+
+  if (isEdit) {
+    document.getElementById("page-title").textContent = "신청 정보 수정";
+    document.getElementById("page-lead").textContent = "저장하면 변경 내용이 바로 반영됩니다.";
+    document.getElementById("btn-submit").textContent = "저장하고 접수하기";
+    document.getElementById("btn-draft").textContent = "저장만 하기";
+    Care.api("/api/applications/" + encodeURIComponent(code) + "?token=" + encodeURIComponent(token))
+      .then(function (a) {
+        form.mother_name.value = a.mother_name || "";
+        form.mother_phone.value = a.mother_phone || "";
+        form.helper_name.value = a.helper_name || "";
+        form.helper_phone.value = a.helper_phone || "";
+        form.relation_detail.value = a.relation_detail || "";
+        form.due_date.value = a.due_date || "";
+        form.health_center_code.value = a.health_center_code || "";
+        form.memo.value = a.memo || "";
+        form.helper_relation.value = a.helper_relation || "가족";
+        form.service_days.value = a.service_days || 15;
+        selectChip("relation-chips", a.helper_relation || "가족");
+        selectChip("days-chips", a.service_days || 15);
+        if (a.status !== "draft" && a.status !== "rejected") {
+          document.getElementById("btn-submit").classList.add("hidden");
+          document.getElementById("btn-draft").textContent = "수정 내용 저장";
+          document.getElementById("btn-draft").classList.add("primary");
+        }
+      })
+      .catch(function (e) { Care.toast(e.message, true); });
+  }
+})();
+</script>
+</body>
+</html>

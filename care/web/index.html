@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>친정엄마 산모신생아건강관리사 신청 | 다이음</title>
+<meta name="description" content="가족·지인이 산모신생아건강관리사로 활동하는 친정엄마 서비스 온라인 신청. 필요 서류와 이번 달 예상 소득을 접수 전에 확인하세요.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A4%B1%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <a class="brand" href="./">다이음 <span>친정엄마</span></a>
+    <div class="spacer"></div>
+    <a class="nav" href="status.html">내 신청 조회</a>
+    <a class="nav" href="admin.html">관리자</a>
+  </div>
+
+  <section class="panel hero">
+    <h1>친정엄마 산모신생아건강관리사 신청</h1>
+    <p>가족 또는 지인이 산모신생아건강관리사로 산모와 신생아를 돌보는 제도입니다.<br>
+       필요한 서류와 입력 항목을 <strong>접수 전에 미리 확인</strong>하고, 준비되는 대로 하나씩 올리면 됩니다.</p>
+    <div class="btn-row" style="margin-top:16px">
+      <a class="btn primary" href="apply.html">온라인 신청 접수하기</a>
+      <button id="btn-consult">전화상담 신청하기</button>
+      <a class="btn" href="status.html">내 신청 조회 · 서류 추가</a>
+    </div>
+  </section>
+
+  <!-- 친정엄마 소득 — 관리자가 매달 변경하면 이 영역이 함께 바뀐다 -->
+  <section class="panel" id="pay-panel">
+    <h2 id="pay-headline">친정엄마 산후도우미 예상 소득</h2>
+    <p class="lead" id="pay-sub">불러오는 중…</p>
+    <div class="pay-grid" id="pay-grid"></div>
+    <p class="small muted" id="pay-note" style="margin-top:12px"></p>
+  </section>
+
+  <section class="panel">
+    <h2>접수 전 준비 서류</h2>
+    <p class="lead">서류가 하나도 준비되지 않아도 <strong>접수는 가능</strong>합니다. 접수 후 부족한 서류만 추가로 올릴 수 있어요.</p>
+    <div class="doc-list" id="doc-list"></div>
+    <p class="small muted" style="margin-top:12px">
+      PDF 또는 사진(JPG·PNG·HEIC)으로 올릴 수 있으며, 글자가 또렷하게 보이도록 촬영해 주세요.
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2>접수 시 입력하는 정보</h2>
+    <p class="lead">아래 정보를 미리 확인하고 오시면 3분이면 접수가 끝납니다.</p>
+    <div class="doc-list" id="field-list"></div>
+  </section>
+
+  <section class="panel">
+    <h2>진행 절차</h2>
+    <div class="doc-list">
+      <div class="doc-item"><div class="doc-head"><span class="badge info">1</span><span class="t">온라인 접수 (자동 승인)</span></div>
+        <div class="doc-desc">신청서를 제출하면 접수는 자동으로 승인됩니다. 서류가 없어도 접수 자체는 완료됩니다.</div></div>
+      <div class="doc-item"><div class="doc-head"><span class="badge info">2</span><span class="t">서류 업로드 (나눠서 가능)</span></div>
+        <div class="doc-desc">준비된 서류부터 올려두고, 나머지는 준비되는 대로 추가하면 됩니다. 접수하지 않고 임시저장만 해둘 수도 있습니다.</div></div>
+      <div class="doc-item"><div class="doc-head"><span class="badge warn">3</span><span class="t">다이음 관리자 서류 검토</span></div>
+        <div class="doc-desc">부족한 서류가 있으면 어떤 서류가 왜 부족한지 메시지로 안내(반려)해 드립니다. 부족한 서류만 다시 올리면 됩니다.</div></div>
+      <div class="doc-item"><div class="doc-head"><span class="badge ok">4</span><span class="t">최종확인 완료</span></div>
+        <div class="doc-desc">확인이 끝나면 조회 페이지에서 <strong>접수 → 검토 → 최종확인</strong> 중 어느 단계인지 바로 볼 수 있습니다.</div></div>
+    </div>
+  </section>
+
+  <!-- 이 브라우저에 기억된 접수 건 -->
+  <section class="panel hidden" id="mine-panel">
+    <h2>최근 신청 내역</h2>
+    <p class="lead">이 기기에 저장된 접수 건입니다.</p>
+    <div class="doc-list" id="mine-list"></div>
+  </section>
+
+  <div class="sticky-cta">
+    <a class="btn primary" href="apply.html">신청 접수하기</a>
+    <button id="btn-consult2">전화상담 신청</button>
+  </div>
+</div>
+
+<dialog id="consult-dialog">
+  <h2>전화상담 신청</h2>
+  <p class="lead">담당자가 확인 후 순차적으로 연락드립니다.</p>
+  <form method="dialog" id="consult-form">
+    <label class="field"><span class="lbl">성함<em>*</em></span>
+      <input name="name" required maxlength="40" placeholder="홍길동"></label>
+    <label class="field"><span class="lbl">연락처<em>*</em></span>
+      <input name="phone" required inputmode="numeric" maxlength="13" placeholder="010-0000-0000"></label>
+    <label class="field"><span class="lbl">통화 가능한 시간대</span>
+      <input name="preferred_time" maxlength="60" placeholder="예: 평일 오후 2~5시"></label>
+    <label class="field"><span class="lbl">문의 내용</span>
+      <textarea name="memo" maxlength="500" placeholder="궁금한 점을 적어주세요 (선택)"></textarea></label>
+    <div class="btn-row">
+      <button class="primary" id="consult-submit" type="submit">상담 신청하기</button>
+      <button type="button" id="consult-cancel">닫기</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+<script>
+(function () {
+  const E = Care.esc;
+
+  function renderPay(pay) {
+    document.getElementById("pay-headline").textContent = pay.headline || "친정엄마 산후도우미 예상 소득";
+    const bits = [];
+    if (pay.effective_month) bits.push(E(pay.effective_month) + " 기준");
+    if (pay.hourly_wage) bits.push("적용 시급 " + Care.won(pay.hourly_wage));
+    if (pay.updated_at) bits.push("갱신 " + Care.fmtDate(pay.updated_at));
+    document.getElementById("pay-sub").innerHTML = bits.length ? bits.join(" · ")
+      : "관리자가 이번 달 금액을 등록하면 이 영역에 표시됩니다.";
+
+    const grid = document.getElementById("pay-grid");
+    if (!pay.rows || !pay.rows.length) {
+      grid.innerHTML = '<div class="pay-cell"><div class="lb">등록된 금액 없음</div>' +
+        '<div class="nt">최저시급·이벤트 기준이 확정되면 표시됩니다. 자세한 금액은 전화상담으로 안내드립니다.</div></div>';
+      return;
+    }
+    grid.innerHTML = pay.rows.map(function (r) {
+      return '<div class="pay-cell"><div class="lb">' + E(r.label) + '</div>' +
+             '<div class="amt">' + Care.won(r.amount) + '</div>' +
+             (r.note ? '<div class="nt">' + E(r.note) + '</div>' : '') + '</div>';
+    }).join("");
+    document.getElementById("pay-note").textContent = pay.note || "";
+  }
+
+  function renderDocs(docs) {
+    document.getElementById("doc-list").innerHTML = docs.map(function (d, i) {
+      return '<div class="doc-item"><div class="doc-head"><span class="badge info">' + (i + 1) + '</span>' +
+             '<span class="t">' + E(d.label) + '</span>' +
+             (d.required ? '<span class="badge">필수</span>' : '<span class="badge">선택</span>') +
+             '</div><div class="doc-desc">' + E(d.desc) + '</div></div>';
+    }).join("");
+  }
+
+  function renderFields(fields) {
+    document.getElementById("field-list").innerHTML = fields.map(function (f) {
+      let extra = f.note ? E(f.note) : "";
+      if (f.options) extra = "선택: " + f.options.join("일 · ") + "일 이상 (기본 " + f.default + "일)";
+      return '<div class="doc-item"><div class="doc-head"><span class="t">' + E(f.label) + '</span>' +
+             (f.required ? '<span class="badge bad">필수</span>' : '<span class="badge">선택</span>') +
+             '</div>' + (extra ? '<div class="doc-desc">' + extra + '</div>' : '') + '</div>';
+    }).join("");
+  }
+
+  function renderMine() {
+    const list = Care.readStore();
+    if (!list.length) return;
+    document.getElementById("mine-panel").classList.remove("hidden");
+    document.getElementById("mine-list").innerHTML = list.map(function (x) {
+      return '<div class="doc-item"><div class="doc-head"><span class="t mono">' + E(x.code) + '</span>' +
+             (x.mother_name ? '<span class="badge">' + E(x.mother_name) + ' 산모</span>' : '') +
+             '<div class="spacer"></div></div>' +
+             '<div class="doc-desc"><a href="status.html?code=' + encodeURIComponent(x.code) +
+             '&token=' + encodeURIComponent(x.token) + '">진행 상황 보기 · 서류 추가하기 →</a></div></div>';
+    }).join("");
+  }
+
+  Care.api("/api/info").then(function (info) {
+    renderPay(info.pay || {});
+    renderDocs(info.documents || []);
+    renderFields(info.fields || []);
+  }).catch(function (e) {
+    document.getElementById("pay-sub").textContent = "안내 정보를 불러오지 못했습니다: " + e.message;
+  });
+  renderMine();
+
+  // 전화상담 모달
+  const dlg = document.getElementById("consult-dialog");
+  const form = document.getElementById("consult-form");
+  Care.bindPhone(form.phone);
+  function open() { dlg.showModal(); }
+  document.getElementById("btn-consult").onclick = open;
+  document.getElementById("btn-consult2").onclick = open;
+  document.getElementById("consult-cancel").onclick = function () { dlg.close(); };
+
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    const btn = document.getElementById("consult-submit");
+    btn.disabled = true;
+    Care.api("/api/consultations", {
+      method: "POST",
+      body: {
+        name: form.name.value, phone: form.phone.value,
+        preferred_time: form.preferred_time.value, memo: form.memo.value
+      }
+    }).then(function (r) {
+      Care.toast(r.message || "상담 신청이 접수되었습니다.");
+      form.reset();
+      dlg.close();
+    }).catch(function (e) {
+      Care.toast(e.message, true);
+    }).finally(function () { btn.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>다이음 관리자 | 친정엄마 신청 관리</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A4%B1%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="wrap wide">
+
+  <div class="topbar">
+    <a class="brand" href="./">다이음 <span>관리자</span></a>
+    <div class="spacer"></div>
+    <button class="small hidden" id="btn-logout">잠그기</button>
+  </div>
+
+  <!-- 로그인 -->
+  <section class="panel" id="login-panel">
+    <h1>관리자 로그인</h1>
+    <p class="lead">서버에 설정된 관리자 비밀번호를 입력하세요.</p>
+    <form id="login-form">
+      <label class="field"><span class="lbl">비밀번호</span>
+        <input type="password" name="password" autocomplete="current-password"></label>
+      <div class="btn-row"><button class="primary" type="submit">들어가기</button></div>
+    </form>
+  </section>
+
+  <div id="main" class="hidden">
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="primary" data-tab="apps">신청 관리</button>
+      <button data-tab="consults">전화상담</button>
+      <button data-tab="pay">친정엄마 소득 설정</button>
+    </div>
+
+    <!-- 신청 관리 -->
+    <section id="tab-apps">
+      <section class="panel">
+        <div class="btn-row" style="margin-bottom:12px">
+          <input id="q" placeholder="접수번호·이름·연락처 검색" style="flex:1; min-width:200px">
+          <select id="filter" style="width:auto">
+            <option value="">전체 상태</option>
+            <option value="draft">작성중(임시저장)</option>
+            <option value="received">접수완료</option>
+            <option value="reviewing">서류 검토중</option>
+            <option value="rejected">보완요청(반려)</option>
+            <option value="confirmed">최종확인 완료</option>
+          </select>
+          <button id="btn-reload">새로고침</button>
+        </div>
+        <div class="chips" id="counts"></div>
+        <div class="scroll-x" style="margin-top:12px">
+          <table class="list">
+            <thead><tr>
+              <th>접수번호</th><th>산모</th><th>산후도우미</th><th>관계</th>
+              <th>출산예정일</th><th>기간</th><th>서류</th><th>상태</th><th>최근 변경</th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="detail-panel">
+        <div class="doc-head" style="margin-bottom:8px">
+          <h2 id="d-code" class="mono">-</h2>
+          <span class="badge" id="d-status">-</span>
+          <div class="spacer"></div>
+          <button class="small" id="d-close">닫기</button>
+        </div>
+        <dl class="kv" id="d-info"></dl>
+
+        <h3 style="margin:18px 0 8px">제출 서류</h3>
+        <div class="doc-list" id="d-docs"></div>
+
+        <h3 style="margin:18px 0 8px">단계 변경 · 반려</h3>
+        <div class="notice info small">
+          반려하면 신청자 화면에 부족한 서류와 사유가 표시되고, 부족한 서류만 다시 올려 재제출할 수 있습니다.
+        </div>
+        <div id="missing-boxes" class="chips" style="margin-bottom:10px"></div>
+        <label class="field"><span class="lbl">신청자에게 보낼 메시지</span>
+          <textarea id="d-message" maxlength="1000" placeholder="예: 건강검진결과서에 결핵 검사 항목이 보이지 않습니다. 해당 항목이 포함된 결과서를 다시 올려주세요."></textarea></label>
+        <div class="btn-row">
+          <button id="btn-reviewing">검토중으로 변경</button>
+          <button class="danger" id="btn-reject">부족 서류 반려</button>
+          <button class="primary" id="btn-confirm">최종확인 완료</button>
+        </div>
+
+        <h3 style="margin:18px 0 8px">진행 기록</h3>
+        <div class="timeline" id="d-timeline"></div>
+      </section>
+    </section>
+
+    <!-- 전화상담 -->
+    <section id="tab-consults" class="hidden">
+      <section class="panel">
+        <h2>전화상담 신청</h2>
+        <p class="lead">메인 화면의 "전화상담 신청하기"로 접수된 건입니다.</p>
+        <div class="scroll-x">
+          <table class="list">
+            <thead><tr><th>신청일시</th><th>성함</th><th>연락처</th><th>통화 희망</th><th>문의</th><th>상태</th><th></th></tr></thead>
+            <tbody id="consult-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <!-- 급여 설정 -->
+    <section id="tab-pay" class="hidden">
+      <section class="panel">
+        <h2>친정엄마 소득 안내 (메인 화면 노출)</h2>
+        <p class="lead">최저시급 기준이나 매달 이벤트에 따라 금액이 바뀌면 여기서 수정하세요. 저장 즉시 메인 화면에 반영됩니다.</p>
+        <div class="two-col">
+          <label class="field"><span class="lbl">기준 월</span>
+            <input id="p-month" maxlength="20" placeholder="예: 2026년 9월"></label>
+          <label class="field"><span class="lbl">적용 시급 (원)</span>
+            <input id="p-wage" inputmode="numeric" placeholder="예: 10320"></label>
+        </div>
+        <label class="field"><span class="lbl">제목</span>
+          <input id="p-headline" maxlength="100" placeholder="친정엄마 산후도우미 예상 소득"></label>
+        <label class="field"><span class="lbl">하단 안내 문구</span>
+          <textarea id="p-note" maxlength="600"></textarea></label>
+
+        <h3 style="margin:16px 0 8px">기간별 금액</h3>
+        <div class="doc-list" id="p-rows"></div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="small" id="p-add">항목 추가</button>
+          <button class="small" id="p-preset">기본 항목(5·10·15·20·25일) 채우기</button>
+        </div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="primary" id="p-save">저장하고 메인에 반영</button>
+        </div>
+      </section>
+    </section>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+(function () {
+  const E = Care.esc;
+  const el = function (id) { return document.getElementById(id); };
+  const KEY = "dayeum.care.admin";
+  let pw = sessionStorage.getItem(KEY) || "";
+  let current = null, DOC_TYPES = [];
+
+  function adminApi(path, options) {
+    const opt = Object.assign({ headers: {} }, options || {});
+    opt.headers["X-Admin-Password"] = pw;
+    return Care.api(path, opt);
+  }
+
+  // ── 로그인 ──
+  document.getElementById("login-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    pw = ev.target.password.value;
+    adminApi("/api/admin/applications").then(function () {
+      sessionStorage.setItem(KEY, pw);
+      enter();
+    }).catch(function (e) { Care.toast(e.message, true); });
+  });
+
+  el("btn-logout").onclick = function () {
+    sessionStorage.removeItem(KEY);
+    location.reload();
+  };
+
+  function enter() {
+    el("login-panel").classList.add("hidden");
+    el("main").classList.remove("hidden");
+    el("btn-logout").classList.remove("hidden");
+    Care.api("/api/info").then(function (info) { DOC_TYPES = info.documents || []; loadList(); });
+    loadPay();
+    loadConsults();
+  }
+
+  // ── 탭 ──
+  document.querySelectorAll("[data-tab]").forEach(function (btn) {
+    btn.onclick = function () {
+      document.querySelectorAll("[data-tab]").forEach(function (b) { b.classList.remove("primary"); });
+      btn.classList.add("primary");
+      ["apps", "consults", "pay"].forEach(function (t) {
+        el("tab-" + t).classList.toggle("hidden", t !== btn.dataset.tab);
+      });
+    };
+  });
+
+  // ── 신청 목록 ──
+  function loadList() {
+    const params = new URLSearchParams();
+    if (el("filter").value) params.set("status", el("filter").value);
+    if (el("q").value.trim()) params.set("q", el("q").value.trim());
+    adminApi("/api/admin/applications?" + params.toString()).then(function (data) {
+      el("counts").innerHTML = Object.keys(data.statuses).map(function (k) {
+        return '<span class="chip">' + E(data.statuses[k]) + " " + (data.counts[k] || 0) + "</span>";
+      }).join("");
+      el("rows").innerHTML = data.items.length ? data.items.map(function (a) {
+        const days = a.service_days + (a.service_days >= 25 ? "일+" : "일");
+        const docs = a.doc_count + "건" + (a.missing_now.length ? " <span class='badge warn'>부족 " + a.missing_now.length + "</span>" : "");
+        return '<tr class="click" data-code="' + E(a.code) + '">' +
+          "<td class='mono'>" + E(a.code) + "</td><td>" + E(a.mother_name || "-") + "</td>" +
+          "<td>" + E(a.helper_name || "-") + "</td><td>" + E(a.helper_relation) + "</td>" +
+          "<td>" + E(a.due_date || "-") + "</td><td>" + days + "</td><td>" + docs + "</td>" +
+          '<td><span class="badge ' + Care.statusBadgeClass(a.status) + '">' + E(a.status_label) + "</span></td>" +
+          "<td class='small muted'>" + Care.fmtDate(a.updated_at) + "</td></tr>";
+      }).join("") : '<tr><td colspan="9" class="muted small">신청 내역이 없습니다.</td></tr>';
+      el("rows").querySelectorAll("tr.click").forEach(function (tr) {
+        tr.onclick = function () { openDetail(tr.dataset.code); };
+      });
+    }).catch(function (e) { Care.toast(e.message, true); });
+  }
+  el("btn-reload").onclick = loadList;
+  el("filter").onchange = loadList;
+  el("q").addEventListener("keydown", function (e) { if (e.key === "Enter") loadList(); });
+
+  // ── 상세 ──
+  function openDetail(code) {
+    adminApi("/api/admin/applications/" + encodeURIComponent(code)).then(renderDetail)
+      .catch(function (e) { Care.toast(e.message, true); });
+  }
+  el("d-close").onclick = function () { el("detail-panel").classList.add("hidden"); };
+
+  function renderDetail(a) {
+    current = a;
+    el("detail-panel").classList.remove("hidden");
+    el("d-code").textContent = a.code;
+    el("d-status").textContent = a.status_label;
+    el("d-status").className = "badge " + Care.statusBadgeClass(a.status);
+
+    const rel = a.helper_relation + (a.relation_detail ? " (" + a.relation_detail + ")" : "");
+    const rows = [
+      ["산모 이름", a.mother_name], ["산모 연락처", a.mother_phone],
+      ["산후도우미", a.helper_name], ["도우미 연락처", a.helper_phone],
+      ["관계", rel], ["출산예정일", a.due_date],
+      ["이용예정기간", a.service_days + (a.service_days >= 25 ? "일 이상" : "일")],
+      ["보건소 이용코드", a.health_center_code || "미입력"],
+      ["남긴 말씀", a.memo], ["접수일시", a.submitted_at ? Care.fmtDate(a.submitted_at) : "미접수"],
+      ["최종확인", a.confirmed_at ? Care.fmtDate(a.confirmed_at) : "-"]
+    ];
+    el("d-info").innerHTML = rows.map(function (r) {
+      return "<dt>" + E(r[0]) + "</dt><dd>" + E(r[1] || "-") + "</dd>";
+    }).join("");
+
+    const byType = {};
+    (a.documents || []).forEach(function (d) { (byType[d.doc_type] = byType[d.doc_type] || []).push(d); });
+    el("d-docs").innerHTML = DOC_TYPES.map(function (t) {
+      const files = byType[t.key] || [];
+      let head = '<div class="doc-head"><span class="t">' + E(t.label) + "</span>" +
+        (files.length ? '<span class="badge info">' + files.length + "건</span>" : '<span class="badge warn">미제출</span>') +
+        "</div>";
+      const body = files.map(function (f) {
+        const badge = f.status === "accepted" ? '<span class="badge ok">확인</span>'
+                    : f.status === "rejected" ? '<span class="badge bad">반려</span>'
+                    : '<span class="badge">대기</span>';
+        return '<div class="file-row">' + badge +
+          '<span class="name">' + E(f.filename) + ' <span class="muted small">(' + Care.fileSize(f.size) + " · " +
+          Care.fmtDate(f.uploaded_at) + ")</span>" +
+          (f.reject_reason ? '<div class="small" style="color:var(--red)">' + E(f.reject_reason) + "</div>" : "") + "</span>" +
+          '<button class="small" data-view="' + f.id + '">열기</button>' +
+          '<button class="small" data-review="' + f.id + '" data-status="accepted">확인</button>' +
+          '<button class="small danger" data-review="' + f.id + '" data-status="rejected">반려</button></div>';
+      }).join("");
+      return '<div class="doc-item">' + head + body + "</div>";
+    }).join("");
+
+    el("d-docs").querySelectorAll("button[data-view]").forEach(function (b) {
+      b.onclick = function () { viewFile(a.code, b.dataset.view); };
+    });
+    el("d-docs").querySelectorAll("button[data-review]").forEach(function (b) {
+      b.onclick = function () {
+        const reason = b.dataset.status === "rejected"
+          ? (prompt("반려 사유를 입력하세요 (신청자에게 표시됩니다)") || "") : "";
+        if (b.dataset.status === "rejected" && !reason) return;
+        adminApi("/api/admin/documents/" + b.dataset.review + "/review",
+                 { method: "POST", body: { status: b.dataset.status, reason: reason } })
+          .then(function (updated) { Care.toast("서류 상태를 변경했습니다."); renderDetail(updated); loadList(); })
+          .catch(function (e) { Care.toast(e.message, true); });
+      };
+    });
+
+    // 부족 서류 선택 — 기본값은 아직 올라오지 않은 서류
+    el("missing-boxes").innerHTML = DOC_TYPES.map(function (t) {
+      const on = (a.missing_docs || []).indexOf(t.key) > -1 ||
+                 (a.missing_now || []).indexOf(t.label) > -1;
+      return '<div class="chip' + (on ? " on" : "") + '" data-miss="' + t.key + '">' + E(t.label) + "</div>";
+    }).join("");
+    el("missing-boxes").querySelectorAll("[data-miss]").forEach(function (chip) {
+      chip.onclick = function () { chip.classList.toggle("on"); };
+    });
+    el("d-message").value = a.admin_message || "";
+
+    const evs = (a.events || []).slice().reverse();
+    el("d-timeline").innerHTML = evs.map(function (e) {
+      return '<div class="ev">' + E(e.message) + '<div class="meta">' + Care.fmtDate(e.created_at) +
+             " · " + E(e.actor) + "</div></div>";
+    }).join("") || '<p class="muted small">기록 없음</p>';
+  }
+
+  function viewFile(code, docId) {
+    // 관리자 파일 조회는 비밀번호 헤더가 필요하므로 blob 으로 받아 새 탭에 연다
+    fetch("/api/admin/applications/" + encodeURIComponent(code) + "/documents/" + docId + "/file",
+          { headers: { "X-Admin-Password": pw } })
+      .then(function (r) { if (!r.ok) throw new Error("파일을 열 수 없습니다."); return r.blob(); })
+      .then(function (blob) {
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener");
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      })
+      .catch(function (e) { Care.toast(e.message, true); });
+  }
+
+  function changeStatus(status) {
+    if (!current) return;
+    const missing = Array.from(el("missing-boxes").querySelectorAll(".chip.on"))
+      .map(function (c) { return c.dataset.miss; });
+    adminApi("/api/admin/applications/" + encodeURIComponent(current.code) + "/status",
+             { method: "POST", body: { status: status, message: el("d-message").value, missing_docs: missing } })
+      .then(function (updated) { Care.toast("상태를 변경했습니다."); renderDetail(updated); loadList(); })
+      .catch(function (e) { Care.toast(e.message, true); });
+  }
+  el("btn-reviewing").onclick = function () { changeStatus("reviewing"); };
+  el("btn-reject").onclick = function () { changeStatus("rejected"); };
+  el("btn-confirm").onclick = function () {
+    if (confirm("최종확인 완료로 변경할까요? 신청자는 서류를 더 이상 수정할 수 없습니다.")) changeStatus("confirmed");
+  };
+
+  // ── 전화상담 ──
+  function loadConsults() {
+    adminApi("/api/admin/consultations").then(function (data) {
+      el("consult-rows").innerHTML = data.items.length ? data.items.map(function (c) {
+        return "<tr><td class='small'>" + Care.fmtDate(c.created_at) + "</td><td>" + E(c.name) + "</td>" +
+          "<td>" + E(c.phone) + "</td><td>" + E(c.preferred_time || "-") + "</td>" +
+          "<td class='small'>" + E(c.memo || "-") + "</td>" +
+          '<td><span class="badge ' + (c.status === "done" ? "ok" : "warn") + '">' +
+          (c.status === "done" ? "완료" : "대기") + "</span></td>" +
+          '<td><button class="small" data-c="' + c.id + '" data-s="' + (c.status === "done" ? "new" : "done") + '">' +
+          (c.status === "done" ? "대기로" : "완료로") + "</button></td></tr>";
+      }).join("") : '<tr><td colspan="7" class="muted small">상담 신청이 없습니다.</td></tr>';
+      el("consult-rows").querySelectorAll("button[data-c]").forEach(function (b) {
+        b.onclick = function () {
+          adminApi("/api/admin/consultations/" + b.dataset.c, { method: "POST", body: { status: b.dataset.s } })
+            .then(loadConsults).catch(function (e) { Care.toast(e.message, true); });
+        };
+      });
+    }).catch(function (e) { Care.toast(e.message, true); });
+  }
+
+  // ── 급여 설정 ──
+  function payRowHtml(r) {
+    return '<div class="doc-item pay-row">' +
+      '<div class="two-col">' +
+      '<label class="field"><span class="lbl">항목</span><input class="r-label" maxlength="40" value="' +
+      E(r.label || "") + '" placeholder="예: 15일 이용 시"></label>' +
+      '<label class="field"><span class="lbl">금액 (원)</span><input class="r-amount" inputmode="numeric" value="' +
+      E(r.amount || "") + '"></label></div>' +
+      '<label class="field" style="margin-bottom:0"><span class="lbl">비고</span>' +
+      '<input class="r-note" maxlength="80" value="' + E(r.note || "") + '" placeholder="예: 9월 이벤트 포함"></label>' +
+      '<div class="btn-row" style="margin-top:8px"><button class="small danger r-del" type="button">이 항목 삭제</button></div></div>';
+  }
+  function bindPayRows() {
+    el("p-rows").querySelectorAll(".r-del").forEach(function (b) {
+      b.onclick = function () { b.closest(".pay-row").remove(); };
+    });
+  }
+  function loadPay() {
+    adminApi("/api/admin/pay").then(function (pay) {
+      el("p-month").value = pay.effective_month || "";
+      el("p-wage").value = pay.hourly_wage || "";
+      el("p-headline").value = pay.headline || "";
+      el("p-note").value = pay.note || "";
+      el("p-rows").innerHTML = (pay.rows || []).map(payRowHtml).join("");
+      bindPayRows();
+    }).catch(function (e) { Care.toast(e.message, true); });
+  }
+  el("p-add").onclick = function () {
+    el("p-rows").insertAdjacentHTML("beforeend", payRowHtml({}));
+    bindPayRows();
+  };
+  el("p-preset").onclick = function () {
+    el("p-rows").innerHTML = [5, 10, 15, 20, 25].map(function (d) {
+      return payRowHtml({ label: d + (d === 25 ? "일 이상 이용" : "일 이용"), amount: "" });
+    }).join("");
+    bindPayRows();
+  };
+  el("p-save").onclick = function () {
+    const rows = Array.from(el("p-rows").querySelectorAll(".pay-row")).map(function (box) {
+      return {
+        label: box.querySelector(".r-label").value.trim(),
+        amount: box.querySelector(".r-amount").value.replace(/[^\d]/g, ""),
+        note: box.querySelector(".r-note").value.trim()
+      };
+    }).filter(function (r) { return r.label; });
+    adminApi("/api/admin/pay", {
+      method: "PUT",
+      body: {
+        effective_month: el("p-month").value.trim(),
+        hourly_wage: Number(el("p-wage").value.replace(/[^\d]/g, "")) || 0,
+        headline: el("p-headline").value.trim(),
+        note: el("p-note").value.trim(),
+        rows: rows
+      }
+    }).then(function () { Care.toast("저장했습니다. 메인 화면에 바로 반영됩니다."); loadPay(); })
+      .catch(function (e) { Care.toast(e.message, true); });
+  };
+
+  if (pw) {
+    adminApi("/api/admin/applications").then(enter).catch(function () { sessionStorage.removeItem(KEY); });
+  }
+})();
+</script>
+</body>
+</html>
