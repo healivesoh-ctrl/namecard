@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제휴 접수 · 양방향 인증</title>
+<link rel="stylesheet" href="/assets/admin.css">
+<style>
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+  .flow{list-style:none;counter-reset:step}
+  .flow li{counter-increment:step;display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
+  .flow li:last-child{border-bottom:none}
+  .flow li::before{content:counter(step);flex:none;width:24px;height:24px;border-radius:50%;
+    background:var(--accent);color:#fff;font-size:12.5px;font-weight:700;display:grid;place-items:center;margin-top:2px}
+  code{background:var(--gray-soft);padding:1px 6px;border-radius:5px;font-size:12.5px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1 id="head">제휴 접수 · 양방향 인증</h1></header>
+  <div class="sub" id="lead">제휴 가게 이용 고객이 신청하면, 가게와 다이음이 서로 확인한 뒤에만 제휴 상품이 전달됩니다.</div>
+
+  <div class="panel">
+    <h2>진행 절차</h2>
+    <ol class="flow">
+      <li>고객이 <b>제휴처 전용 링크(QR·NFC 태그)</b>로 접수 페이지에 들어와 서비스 정보를 확인하고 신청합니다.</li>
+      <li>휴대폰 인증으로 <b>본인 명의</b>를 확인합니다. (여기서부터 접수 건은 그 사람에게 고정됩니다)</li>
+      <li><b>제휴처 관리자</b>가 차트번호 등 이용 기록을 대조해 "우리 고객이 맞다"를 최종확인합니다.</li>
+      <li><b>다이음 관리자</b>가 서비스 배정 가능 여부를 확인하고 승인합니다.</li>
+      <li>두 승인이 <b>모두</b> 유효할 때만 수령코드(60초마다 갱신)가 발급됩니다.</li>
+      <li>수령코드 + 휴대폰 뒷 4자리를 대조해 <b>본인</b>에게 제휴 상품을 전달하고 확정합니다.</li>
+    </ol>
+  </div>
+
+  <div class="cards">
+    <div class="panel">
+      <h2>고객 접수</h2>
+      <div class="hint">제휴처별 전용 링크로 들어가야 접수할 수 있습니다.</div>
+      <div id="partner-links" style="margin-top:10px"></div>
+    </div>
+    <div class="panel">
+      <h2>관리자</h2>
+      <div class="row" style="margin-top:6px">
+        <a href="/store"><button>제휴처 관리자</button></a>
+        <a href="/daieum"><button class="primary">다이음 관리자</button></a>
+      </div>
+      <div class="hint">제휴처 관리자는 자기 가게 접수 건만, 다이음 관리자는 전체를 봅니다.</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>제휴처·상품 추가</h2>
+    <div class="hint"><code>config/partners.json</code> 에 항목을 추가하고 다이음 관리자 화면의
+      <b>제휴 설정 다시 읽기</b> 를 누르면 즉시 반영됩니다. 본인확인 항목·상품·1인 한도·유효기간은
+      제휴처마다 다르게 지정할 수 있습니다.</div>
+  </div>
+</div>
+<script>
+fetch('/api/catalog').then(r => r.json()).then(cat => {
+  document.getElementById('head').textContent = `${cat.operator.name} 제휴 접수 · 양방향 인증`;
+  document.getElementById('partner-links').innerHTML = cat.partners.map(p => {
+    const url = `${location.origin}/apply?p=${encodeURIComponent(p.id)}`;
+    return `<div class="kv"><span>${p.name}</span><span><a href="${url}">${url}</a></span></div>`;
+  }).join('') || '<div class="hint">등록된 제휴처가 없습니다.</div>';
+}).catch(() => {});
+</script>
+</body>
+</html>

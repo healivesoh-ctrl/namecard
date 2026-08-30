@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제휴 산후도우미 접수</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg:#f6f7fb; --card:#fff; --text:#1a1d27; --muted:#6b7280; --border:#e5e7eb;
+    --accent:#8a5a2b; --accent-soft:#f6efe7; --green:#059669; --green-soft:#ecfdf5;
+    --red:#dc2626; --red-soft:#fef2f2; --gray-soft:#f3f4f6;
+    --shadow:0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111318; --card:#1a1d25; --text:#e7e9ee; --muted:#9aa1ad; --border:#2a2e38;
+            --accent-soft:#2a2118; --green:#34d399; --green-soft:#123528; --red:#f87171;
+            --red-soft:#3a1a1a; --gray-soft:#23262e; --shadow:0 1px 3px rgba(0,0,0,.4); }
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--text);font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;font-size:15px;line-height:1.55}
+  .wrap{max-width:620px;margin:0 auto;padding:24px 18px 80px}
+  header{margin-bottom:18px}
+  .badge{display:inline-block;background:var(--accent-soft);color:var(--accent);font-size:12.5px;
+         font-weight:700;padding:4px 10px;border-radius:999px;margin-bottom:10px}
+  h1{font-size:21px;font-weight:700;letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:13.5px;margin-top:6px}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:14px;
+         box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+  .panel h2{font-size:15px;font-weight:700;margin-bottom:12px}
+  label{display:block;font-size:13.5px;font-weight:600;margin:14px 0 6px}
+  label .req{color:var(--red);margin-left:3px}
+  input,select,textarea{font:inherit;width:100%;padding:9px 12px;border:1px solid var(--border);
+         border-radius:9px;background:var(--card);color:var(--text)}
+  textarea{min-height:74px;resize:vertical}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:5px}
+  button{font:inherit;cursor:pointer;border:1px solid var(--border);background:var(--card);
+         color:var(--text);border-radius:9px;padding:10px 16px}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;width:100%}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .check{display:flex;gap:9px;align-items:flex-start;margin:10px 0;font-size:13.5px;font-weight:400}
+  .check input{width:auto;margin-top:3px;flex:none}
+  .product{border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:9px;cursor:pointer;display:flex;gap:10px}
+  .product.sel{border-color:var(--accent);background:var(--accent-soft)}
+  .product input{width:auto;flex:none;margin-top:4px}
+  .product b{font-size:14.5px}
+  .product .note{font-size:12.5px;color:var(--muted)}
+  .msg{padding:11px 13px;border-radius:10px;font-size:13.5px;margin-bottom:14px}
+  .msg.err{background:var(--red-soft);color:var(--red)}
+  .msg.ok{background:var(--green-soft);color:var(--green)}
+  .hidden{display:none!important}
+  ul.info{margin:8px 0 0 18px;color:var(--muted);font-size:13.5px}
+  .steps{display:flex;gap:6px;margin-bottom:16px;font-size:12.5px}
+  .steps div{flex:1;text-align:center;padding:7px 4px;border-radius:8px;background:var(--gray-soft);color:var(--muted)}
+  .steps div.on{background:var(--accent);color:#fff;font-weight:700}
+  .code{font-size:40px;font-weight:800;letter-spacing:9px;text-align:center;
+        font-variant-numeric:tabular-nums;margin:6px 0 2px}
+  .timeline{list-style:none;margin-top:6px}
+  .timeline li{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13.5px}
+  .timeline li:last-child{border-bottom:none}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--border);margin-top:6px;flex:none}
+  .dot.on{background:var(--green)}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:13.5px}
+  .kv span:first-child{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge" id="badge">제휴 혜택</div>
+    <h1 id="title">제휴 산후도우미 접수</h1>
+    <div class="sub" id="intro">제휴처를 확인하는 중입니다…</div>
+  </header>
+
+  <div id="msg" class="msg hidden"></div>
+
+  <div class="steps">
+    <div id="s1">1. 신청서</div><div id="s2">2. 본인확인</div><div id="s3">3. 양방향 인증</div>
+  </div>
+
+  <!-- 1단계: 신청서 -->
+  <section id="step-form" class="hidden">
+    <div class="panel hidden" id="svc-pick">
+      <h2>신청할 서비스</h2>
+      <select id="svc-select"></select>
+    </div>
+    <div class="panel" id="svc-panel"></div>
+
+    <div class="panel">
+      <h2>받으실 제휴 상품</h2>
+      <div id="products"></div>
+    </div>
+
+    <div class="panel">
+      <h2>신청자 정보</h2>
+      <label>성함<span class="req">*</span></label>
+      <input id="f-name" placeholder="홍길동" autocomplete="name">
+      <label>휴대폰 번호<span class="req">*</span></label>
+      <input id="f-phone" placeholder="010-0000-0000" inputmode="numeric" autocomplete="tel">
+      <div class="hint">입력한 번호로 인증번호가 발송되며, 상품 수령 시 본인 확인에 사용됩니다.</div>
+    </div>
+
+    <div class="panel">
+      <h2 id="id-title">제휴처 이용 확인</h2>
+      <div class="hint" id="id-hint"></div>
+      <div id="identity"></div>
+    </div>
+
+    <div class="panel">
+      <h2>서비스 예약 정보</h2>
+      <div id="booking"></div>
+    </div>
+
+    <div class="panel">
+      <h2>동의</h2>
+      <label class="check"><input type="checkbox" id="c-terms"><span>서비스 이용약관에 동의합니다. <b class="req">*</b></span></label>
+      <label class="check"><input type="checkbox" id="c-privacy"><span>제휴처 확인을 위해 성함·연락처·이용 확인 정보를 제휴처와 다이음이 공유하는 데 동의합니다. <b class="req">*</b></span></label>
+      <label class="check" id="c-transfer-wrap"><input type="checkbox" id="c-transfer"><span>제휴 상품은 <b>본인만 수령</b>할 수 있으며 타인에게 양도·대리수령하지 않겠습니다. <b class="req">*</b></span></label>
+    </div>
+
+    <button class="primary" id="submit">인증번호 받고 접수하기</button>
+  </section>
+
+  <!-- 2단계: 휴대폰 본인확인 -->
+  <section id="step-otp" class="hidden">
+    <div class="panel">
+      <h2>휴대폰 본인확인</h2>
+      <div class="sub" id="otp-sub"></div>
+      <label>인증번호 6자리</label>
+      <input id="f-otp" inputmode="numeric" maxlength="6" placeholder="000000">
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="primary" id="verify">확인</button>
+        <button id="resend" style="flex:none">재발송</button>
+      </div>
+      <div class="hint">접수번호 <b id="otp-claim"></b> — 이 번호로 진행 상황을 다시 확인할 수 있습니다.</div>
+    </div>
+  </section>
+
+  <!-- 3단계: 상태 -->
+  <section id="step-status" class="hidden">
+    <div class="panel">
+      <h2>접수 현황</h2>
+      <div class="kv"><span>접수번호</span><b id="v-id"></b></div>
+      <div class="kv"><span>제휴처</span><b id="v-partner"></b></div>
+      <div class="kv"><span>서비스</span><b id="v-service"></b></div>
+      <div class="kv"><span>제휴 상품</span><b id="v-product"></b></div>
+      <div class="kv"><span>신청자</span><b id="v-name"></b></div>
+      <div class="kv"><span>상태</span><b id="v-status"></b></div>
+    </div>
+
+    <div class="panel">
+      <h2>양방향 인증 진행</h2>
+      <ul class="timeline" id="approvals"></ul>
+      <div class="hint">두 곳의 확인이 모두 끝나야 수령코드가 발급됩니다.</div>
+    </div>
+
+    <div class="panel hidden" id="code-panel">
+      <h2>수령코드</h2>
+      <div class="code" id="v-code">— — —</div>
+      <div class="hint" style="text-align:center"><b id="v-left"></b>초 후 갱신 · 수령 시 다이음 담당자에게 보여주세요</div>
+      <div class="hint">화면을 캡처해 전달해도 코드가 곧 바뀌므로 타인은 사용할 수 없습니다. 수령 시 휴대폰 뒷 4자리를 함께 확인합니다.</div>
+    </div>
+
+    <div class="panel hidden" id="done-panel">
+      <h2>전달 완료</h2>
+      <div class="kv"><span>확인번호</span><b id="v-receipt"></b></div>
+    </div>
+
+    <button id="refresh">새로고침</button>
+  </section>
+</div>
+
+<script>
+const qs = new URLSearchParams(location.search);
+const PARTNER_ID = qs.get('p') || qs.get('partner') || '';
+let PARTNER = null, SERVICES = null, OPERATOR = null;
+let CLAIM_ID = qs.get('claim') || '', TOKEN = '', TIMER = null;
+
+const $ = (id) => document.getElementById(id);
+const show = (id, on = true) => $(id).classList.toggle('hidden', !on);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function msg(text, kind = 'err') {
+  const el = $('msg');
+  el.className = 'msg ' + kind;
+  el.textContent = text;
+  show('msg', !!text);
+  if (text) window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(TOKEN ? { 'X-Claim-Token': TOKEN } : {}), ...(opts.headers || {}) },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `요청에 실패했습니다 (${res.status})`);
+  return data;
+}
+
+function stepUI(n) {
+  ['s1','s2','s3'].forEach((id, i) => $(id).classList.toggle('on', i === n - 1));
+  show('step-form', n === 1); show('step-otp', n === 2); show('step-status', n === 3);
+}
+
+function fieldHTML(f, prefix) {
+  const req = f.required ? '<span class="req">*</span>' : '';
+  const id = `${prefix}-${f.key}`;
+  let input;
+  if (f.type === 'select')
+    input = `<select id="${id}"><option value="">선택</option>${(f.options||[]).map(o => `<option>${esc(o)}</option>`).join('')}</select>`;
+  else if (f.type === 'textarea') input = `<textarea id="${id}"></textarea>`;
+  else input = `<input id="${id}" type="${f.type === 'date' ? 'date' : 'text'}">`;
+  return `<label>${esc(f.label)}${req}</label>${input}` +
+         (f.hint ? `<div class="hint">${esc(f.hint)}</div>` : '');
+}
+
+function collect(fields, prefix) {
+  const out = {};
+  fields.forEach(f => { const el = $(`${prefix}-${f.key}`); if (el && el.value.trim()) out[f.key] = el.value.trim(); });
+  return out;
+}
+
+async function loadPartner() {
+  if (!PARTNER_ID) {
+    const cat = await api('/api/catalog');
+    const list = cat.partners.map(p => `<li><a href="?p=${encodeURIComponent(p.id)}">${esc(p.name)}</a></li>`).join('');
+    $('intro').innerHTML = `접수하실 제휴처를 선택해 주세요.<ul class="info">${list}</ul>`;
+    return;
+  }
+  const data = await api(`/api/partners/${encodeURIComponent(PARTNER_ID)}`);
+  PARTNER = data.partner; SERVICES = data.services; OPERATOR = data.operator;
+  const accent = PARTNER.brand?.accent;
+  if (accent) document.documentElement.style.setProperty('--accent', accent);
+  $('badge').textContent = `${PARTNER.name} × ${OPERATOR.name}`;
+  $('intro').textContent = PARTNER.brand?.intro || `${PARTNER.name} 이용 고객을 위한 제휴 접수입니다.`;
+
+  // 제휴처가 여러 서비스를 취급할 수 있으므로 2개 이상이면 선택 UI 를 띄운다.
+  show('svc-pick', PARTNER.services.length > 1);
+  $('svc-select').innerHTML = PARTNER.services
+    .map(id => `<option value="${esc(id)}">${esc(SERVICES[id].name)}</option>`).join('');
+  $('svc-select').onchange = () => renderService($('svc-select').value);
+  renderService(PARTNER.services[0]);
+
+  $('products').innerHTML = PARTNER.products.map((p, i) =>
+    `<label class="product${i === 0 ? ' sel' : ''}" data-id="${esc(p.id)}">
+       <input type="radio" name="product" value="${esc(p.id)}" ${i === 0 ? 'checked' : ''}>
+       <span><b>${esc(p.name)}</b> <span class="note">${esc(p.quantity ?? 1)}${esc(p.unit || '개')}</span>
+       ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
+       ${p.handover ? `<div class="note">전달: ${esc(p.handover)}</div>` : ''}</span>
+     </label>`).join('');
+  $('products').addEventListener('change', () => {
+    document.querySelectorAll('.product').forEach(el =>
+      el.classList.toggle('sel', el.querySelector('input').checked));
+  });
+
+  $('id-title').textContent = `${PARTNER.name} 이용 확인`;
+  $('id-hint').textContent = `아래 정보는 ${PARTNER.name} 관리자가 직접 대조해 본원 이용 고객이 맞는지 최종 확인합니다.`;
+  $('identity').innerHTML = PARTNER.identity_fields.map(f => fieldHTML(f, 'id')).join('');
+  show('c-transfer-wrap', !PARTNER.rules.transfer_allowed);
+  stepUI(1);
+}
+
+let SERVICE_ID = '';
+
+function renderService(svcId) {
+  SERVICE_ID = svcId;
+  const svc = SERVICES[svcId];
+  $('title').textContent = `${svc.name} 신청`;
+  document.title = `${PARTNER.name} · ${svc.name} 접수`;
+  $('svc-panel').innerHTML =
+    `<h2>${esc(svc.name)}</h2><div class="hint">제공: ${esc(svc.provider)}</div>` +
+    `<p style="margin-top:8px;font-size:14px">${esc(svc.summary)}</p>` +
+    `<ul class="info">${(svc.details||[]).map(d => `<li>${esc(d)}</li>`).join('')}</ul>`;
+  $('booking').innerHTML = (svc.booking_fields || []).map(f => fieldHTML(f, 'bk')).join('');
+}
+
+$('submit').onclick = async () => {
+  msg('');
+  const body = {
+    partner_id: PARTNER.id,
+    service_id: SERVICE_ID,
+    product_id: document.querySelector('input[name=product]:checked')?.value,
+    name: $('f-name').value.trim(),
+    phone: $('f-phone').value.trim(),
+    identity: collect(PARTNER.identity_fields, 'id'),
+    booking: collect(SERVICES[SERVICE_ID].booking_fields || [], 'bk'),
+    agree_terms: $('c-terms').checked,
+    agree_privacy: $('c-privacy').checked,
+    agree_no_transfer: $('c-transfer').checked,
+  };
+  $('submit').disabled = true;
+  try {
+    const res = await api('/api/claims', { method: 'POST', body: JSON.stringify(body) });
+    CLAIM_ID = res.claim_id;
+    $('otp-claim').textContent = CLAIM_ID;
+    $('otp-sub').textContent = res.message + (res.dev_code ? ` (개발 모드 인증번호: ${res.dev_code})` : '');
+    stepUI(2);
+  } catch (e) { msg(e.message); }
+  $('submit').disabled = false;
+};
+
+$('verify').onclick = async () => {
+  msg('');
+  try {
+    const res = await api(`/api/claims/${CLAIM_ID}/otp/verify`,
+      { method: 'POST', body: JSON.stringify({ code: $('f-otp').value }) });
+    TOKEN = res.token;
+    localStorage.setItem('claim:' + CLAIM_ID, TOKEN);
+    history.replaceState(null, '', `?p=${encodeURIComponent(PARTNER_ID)}&claim=${CLAIM_ID}`);
+    msg(res.message, 'ok');
+    await loadStatus();
+  } catch (e) { msg(e.message); }
+};
+
+$('resend').onclick = async () => {
+  msg('');
+  try {
+    const res = await api(`/api/claims/${CLAIM_ID}/otp/resend`, { method: 'POST' });
+    msg(res.message + (res.dev_code ? ` (개발 모드 인증번호: ${res.dev_code})` : ''), 'ok');
+  } catch (e) { msg(e.message); }
+};
+
+$('refresh').onclick = () => loadStatus();
+
+const ROLE_LABEL = (role) => role === 'store' ? (PARTNER?.name || '제휴처') : (OPERATOR?.name || '다이음');
+
+async function loadStatus() {
+  const claim = await api(`/api/claims/${CLAIM_ID}`);
+  stepUI(3);
+  $('v-id').textContent = claim.id;
+  $('v-partner').textContent = claim.partner_name;
+  $('v-service').textContent = claim.service_name;
+  $('v-product').textContent = claim.product.name;
+  $('v-name').textContent = `${claim.applicant_name} (${claim.phone_masked})`;
+  $('v-status').textContent = claim.status_label;
+
+  $('approvals').innerHTML = [
+    `<li><span class="dot on"></span><span><b>휴대폰 본인확인</b><br><span class="hint">접수자 본인 명의 확인 완료</span></span></li>`,
+    ...claim.required_roles.map(role => {
+      const ap = claim.approvals[role];
+      const ok = ap && ap.valid;
+      return `<li><span class="dot ${ok ? 'on' : ''}"></span><span><b>${esc(ROLE_LABEL(role))} 확인</b><br>
+        <span class="hint">${ok ? `${esc(ap.admin)} 승인 · ${new Date(ap.at * 1000).toLocaleString('ko-KR')}` : '확인 대기 중'}</span></span></li>`;
+    }),
+  ].join('');
+
+  if (claim.rejection?.reason) msg(`반려되었습니다: ${claim.rejection.reason}`, 'err');
+  show('done-panel', claim.status === 'fulfilled');
+  if (claim.status === 'fulfilled') $('v-receipt').textContent = claim.fulfillment?.receipt || '-';
+
+  clearInterval(TIMER);
+  show('code-panel', claim.status === 'approved');
+  if (claim.status === 'approved') tickCode();
+}
+
+async function tickCode() {
+  const draw = async () => {
+    try {
+      const res = await api(`/api/claims/${CLAIM_ID}/release-code`);
+      $('v-code').textContent = res.code.replace(/(\d{3})(\d{3})/, '$1 $2');
+      let left = res.seconds_left;
+      $('v-left').textContent = left;
+      clearInterval(TIMER);
+      TIMER = setInterval(() => {
+        left -= 1;
+        $('v-left').textContent = Math.max(left, 0);
+        if (left <= 0) { clearInterval(TIMER); draw(); }
+      }, 1000);
+    } catch (e) { clearInterval(TIMER); msg(e.message); loadStatus(); }
+  };
+  draw();
+}
+
+(async () => {
+  try {
+    await loadPartner();
+    if (CLAIM_ID) {
+      TOKEN = localStorage.getItem('claim:' + CLAIM_ID) || '';
+      if (TOKEN) await loadStatus();
+      else { $('otp-claim').textContent = CLAIM_ID; stepUI(2); msg('본인확인이 필요합니다. 인증번호를 다시 요청해 주세요.'); }
+    }
+  } catch (e) { msg(e.message); }
+})();
+</script>
+</body>
+</html>

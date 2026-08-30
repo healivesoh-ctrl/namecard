@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제휴처 관리자 — 이용 고객 최종확인</title>
+<link rel="stylesheet" href="/assets/admin.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>제휴처 관리자</h1>
+    <span class="spacer"></span>
+    <span class="hint" id="who"></span>
+    <button id="reload">새로고침</button>
+    <button id="logout">로그아웃</button>
+  </header>
+  <div class="sub">우리 가게 이용 고객이 맞는지 최종확인하는 화면입니다. 승인은 다이음 승인과 함께 있어야만 효력이 생깁니다.</div>
+
+  <div id="msg" class="msg hidden"></div>
+
+  <section id="login" class="panel" style="max-width:420px">
+    <h2>관리자 로그인</h2>
+    <label>제휴처</label>
+    <select id="partner"></select>
+    <label>비밀번호</label>
+    <input id="password" type="password" autocomplete="current-password">
+    <div class="row" style="margin-top:14px"><button class="primary" id="login-btn">로그인</button></div>
+    <div class="hint">비밀번호는 서버 환경변수 <code>PARTNER_ADMIN_PASSWORD__&lt;제휴처ID&gt;</code> 로 설정합니다.</div>
+  </section>
+
+  <section id="console" class="hidden">
+    <div class="tabs" id="tabs"></div>
+    <div class="claims" id="claims"></div>
+  </section>
+</div>
+
+<dialog id="verify">
+  <h2 id="verify-title" style="font-size:16px;margin-bottom:10px"></h2>
+  <div class="hint">아래 항목을 실제 진료(이용) 기록과 대조한 뒤 체크해 주세요. 체크 내역은 감사 로그에 남습니다.</div>
+  <div id="verify-body" style="margin-top:10px"></div>
+  <label>메모 (선택)</label>
+  <input id="verify-note" placeholder="예: 8/1 내원 기록 대조 완료">
+  <div class="row" style="margin-top:16px;justify-content:flex-end">
+    <button id="verify-cancel">취소</button>
+    <button class="primary" id="verify-ok">확인 완료 — 승인</button>
+  </div>
+</dialog>
+
+<script>window.ADMIN_ROLE = "store";</script>
+<script src="/assets/admin.js"></script>
+</body>
+</html>

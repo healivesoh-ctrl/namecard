@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "_comment": [
+    "제휴 가게·상품 카탈로그. 이 파일만 고치면 새 가게/새 상품이 바로 반영된다.",
+    "운영에서는 이 파일을 partners.json 으로 복사해 사용한다(PARTNER_CONFIG 로 경로 지정 가능).",
+    "비밀번호는 admin_password_sha256(=sha256 hex) 또는 환경변수",
+    "PARTNER_ADMIN_PASSWORD__<대문자 파트너ID> 로 설정한다(환경변수가 우선)."
+  ],
+
+  "operator": {
+    "id": "daieum",
+    "name": "디에이블 다이음",
+    "contact": "1577-0000",
+    "brand": { "accent": "#0f766e", "logo_text": "디에이블 다이음" }
+  },
+
+  "services": {
+    "postpartum-helper": {
+      "name": "친정엄마 산후도우미",
+      "provider": "디에이블 다이음",
+      "summary": "산모·신생아 건강관리사가 가정을 방문해 산모 회복과 신생아 돌봄을 지원합니다.",
+      "details": [
+        "이용 기간: 5일 / 10일 / 15일 중 선택",
+        "이용 시간: 평일 09:00~18:00 (1일 8시간, 휴게 1시간 포함)",
+        "정부 지원 바우처와 연계 가능 (자격은 접수 후 안내)"
+      ],
+      "booking_fields": [
+        { "key": "due_date", "label": "출산(예정)일", "type": "date", "required": true },
+        { "key": "period", "label": "희망 이용 기간", "type": "select",
+          "options": ["5일", "10일", "15일"], "required": true },
+        { "key": "start_date", "label": "서비스 희망 시작일", "type": "date", "required": true },
+        { "key": "address", "label": "서비스 지역(구/동)", "type": "text", "required": true,
+          "hint": "예: 대전 유성구 봉명동" },
+        { "key": "memo", "label": "요청 사항", "type": "textarea", "required": false }
+      ]
+    }
+  },
+
+  "partners": [
+    {
+      "id": "daechubat",
+      "name": "대추밭한의원",
+      "active": true,
+      "services": ["postpartum-helper"],
+      "contact": { "manager": "원무과", "phone": "042-000-0000" },
+      "brand": {
+        "accent": "#8a5a2b",
+        "logo_text": "대추밭한의원",
+        "intro": "대추밭한의원에서 진료받으신 산모님께 드리는 제휴 혜택입니다."
+      },
+
+      "identity_fields": [
+        {
+          "key": "chart_no", "label": "진료(차트)번호", "type": "text", "required": true,
+          "pattern": "^[0-9]{4,10}$",
+          "hint": "진료비 영수증·처방전 상단에서 확인하실 수 있습니다.",
+          "verify_label": "차트번호가 본원 환자와 일치"
+        },
+        {
+          "key": "last_visit", "label": "최근 내원일", "type": "date", "required": true,
+          "verify_label": "최근 내원 기록과 일치"
+        },
+        {
+          "key": "patient_name_match", "label": "진료 시 등록한 성함", "type": "text", "required": true,
+          "hint": "차트에 등록된 이름과 동일하게 입력해 주세요.",
+          "verify_label": "차트 등록 성함과 일치"
+        }
+      ],
+
+      "products": [
+        {
+          "id": "postpartum-herb-30",
+          "name": "산후보약 30일분",
+          "quantity": 1, "unit": "제",
+          "note": "출산 4주 경과 후 복용 시작 권장",
+          "handover": "다이음이 가게로부터 수령해 산모님 자택으로 배송"
+        },
+        {
+          "id": "warm-care-set",
+          "name": "산후 온열 케어 세트",
+          "quantity": 1, "unit": "세트",
+          "note": "좌훈 패드 + 한방 파우치",
+          "handover": "산후도우미 첫 방문일에 전달"
+        }
+      ],
+
+      "rules": {
+        "require_store_approval": true,
+        "require_daieum_approval": true,
+        "transfer_allowed": false,
+        "max_claims_per_person": 1,
+        "claim_valid_days": 30,
+        "pickup_requires_phone_match": true,
+        "release_code_period_seconds": 60
+      },
+
+      "_admin_password_demo": "daechubat-demo (예시용 — 운영에서는 반드시 교체)",
+      "admin_password_sha256": "3cb2fe9c28dedd7d3c683d331e9ae2b9a67476323307b219547e037b11da7682"
+    }
+  ]
+}

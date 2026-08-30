@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>다이음 관리자 — 제휴 접수·전달 관리</title>
+<link rel="stylesheet" href="/assets/admin.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>다이음 관리자</h1>
+    <span class="spacer"></span>
+    <span class="hint" id="who"></span>
+    <button id="reload-config">제휴 설정 다시 읽기</button>
+    <button id="reload">새로고침</button>
+    <button id="logout">로그아웃</button>
+  </header>
+  <div class="sub">모든 제휴처의 접수 건을 확인하고, 제휴처 승인과 함께 양방향 인증을 완료한 뒤 상품 전달을 확정합니다.</div>
+
+  <div id="msg" class="msg hidden"></div>
+
+  <section id="login" class="panel" style="max-width:420px">
+    <h2>관리자 로그인</h2>
+    <label>비밀번호</label>
+    <input id="password" type="password" autocomplete="current-password">
+    <div class="row" style="margin-top:14px"><button class="primary" id="login-btn">로그인</button></div>
+    <div class="hint">비밀번호는 서버 환경변수 <code>DAIEUM_ADMIN_PASSWORD</code> 로 설정합니다.</div>
+  </section>
+
+  <section id="console" class="hidden">
+    <div class="tabs" id="tabs"></div>
+    <div class="claims" id="claims"></div>
+  </section>
+</div>
+
+<dialog id="fulfill">
+  <h2 style="font-size:16px;margin-bottom:6px">상품 전달 확정</h2>
+  <div class="hint">신청자 화면의 <b>현재 수령코드</b>와 <b>휴대폰 뒷 4자리</b>를 확인해 입력하세요. 코드는 60초마다 바뀝니다.</div>
+  <label>수령코드 6자리</label>
+  <input id="f-code" inputmode="numeric" maxlength="6" placeholder="000000">
+  <label>휴대폰 뒷 4자리</label>
+  <input id="f-last4" inputmode="numeric" maxlength="4" placeholder="0000">
+  <label>메모 (선택)</label>
+  <input id="f-note" placeholder="예: 택배 발송 / 첫 방문일 전달">
+  <div class="row" style="margin-top:16px;justify-content:flex-end">
+    <button id="fulfill-cancel">취소</button>
+    <button class="primary" id="fulfill-ok">전달 확정</button>
+  </div>
+</dialog>
+
+<script>window.ADMIN_ROLE = "operator";</script>
+<script src="/assets/admin.js"></script>
+</body>
+</html>
