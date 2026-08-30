@@ -66,6 +66,17 @@ STATUS_ORDER = ["draft", "received", "reviewing", "confirmed"]
 SERVICE_DAY_OPTIONS = [5, 10, 15, 20, 25]
 DEFAULT_SERVICE_DAYS = 15
 
+# 바우처 구분코드 — 보건소 방문 또는 복지로에서 신청하면 받는 코드
+VOUCHER_CODE_EXAMPLE = "A-통합-1형"
+VOUCHER_CODE_HELP = (
+    "보건소를 방문하시거나 복지로(bokjiro.go.kr)에서 신청하시면 받는 코드입니다. "
+    f"예: {VOUCHER_CODE_EXAMPLE} · 아직 모르시면 비워두고 넘어가셔도 됩니다."
+)
+
+# 산후조리원 이용
+CENTER_USE_OPTIONS = ["이용함", "이용 안 함"]
+CENTER_PERIOD_OPTIONS = ["1주", "2주", "3주", "4주 이상", "미정"]
+
 # 개인정보 동의 항목. version 은 문구가 바뀔 때 올린다 — 어떤 버전에 동의했는지 남겨야
 # 나중에 "무엇에 동의했는가"를 증명할 수 있다. 실제 오픈 전 법률 검토 필요.
 CONSENT_VERSION = "2026-08-30"
@@ -147,7 +158,9 @@ CREATE TABLE IF NOT EXISTS applications (
     relation_detail    TEXT NOT NULL DEFAULT '',
     due_date           TEXT NOT NULL DEFAULT '',
     service_days       INTEGER NOT NULL DEFAULT 15,
-    health_center_code TEXT NOT NULL DEFAULT '',
+    voucher_code       TEXT NOT NULL DEFAULT '',
+    center_use         TEXT NOT NULL DEFAULT '',
+    center_period      TEXT NOT NULL DEFAULT '',
     memo               TEXT NOT NULL DEFAULT '',
     consents           TEXT NOT NULL DEFAULT '{}',
     consent_at         TEXT NOT NULL DEFAULT '',
@@ -254,10 +267,21 @@ ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("applications", "kakao_verified", "TEXT NOT NULL DEFAULT ''"),
     ("applications", "event_applied", "INTEGER NOT NULL DEFAULT 0"),
     ("notifications", "link", "TEXT NOT NULL DEFAULT ''"),
+    ("applications", "center_use", "TEXT NOT NULL DEFAULT ''"),
+    ("applications", "center_period", "TEXT NOT NULL DEFAULT ''"),
+]
+
+# 이름이 바뀐 컬럼 — 기존 DB 의 값을 그대로 옮긴다.
+RENAMED_COLUMNS: list[tuple[str, str, str]] = [
+    ("applications", "health_center_code", "voucher_code"),
 ]
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
+    for table, old, new in RENAMED_COLUMNS:
+        cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if old in cols and new not in cols:
+            conn.execute(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}")
     for table, column, decl in ADDED_COLUMNS:
         existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
         if column not in existing:

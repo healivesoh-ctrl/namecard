@@ -155,7 +155,9 @@ class ApplicationIn(BaseModel):
     relation_detail: str = Field(default="", max_length=40)
     due_date: str = Field(default="", max_length=20)
     service_days: int = db.DEFAULT_SERVICE_DAYS
-    health_center_code: str = Field(default="", max_length=40)
+    voucher_code: str = Field(default="", max_length=40)
+    center_use: str = Field(default="", max_length=20)
+    center_period: str = Field(default="", max_length=20)
     memo: str = Field(default="", max_length=1000)
     consents: dict[str, bool] = Field(default_factory=dict)  # 개인정보·민감정보·알림톡 동의
     kakao_friend: bool = False                               # 카카오채널 친구추가 확인
@@ -165,9 +167,19 @@ class ApplicationIn(BaseModel):
 def _clean(payload: ApplicationIn) -> dict:
     days = payload.service_days if payload.service_days in db.SERVICE_DAY_OPTIONS else db.DEFAULT_SERVICE_DAYS
     relation = payload.helper_relation if payload.helper_relation in ("가족", "지인") else "가족"
+    # 출산예정일은 일자가 미정일 수 있어 "YYYY-MM" 까지만 받아도 된다.
     due = payload.due_date.strip()
-    if due and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", due):
-        raise HTTPException(400, "출산예정일은 YYYY-MM-DD 형식으로 입력해 주세요.")
+    if due and not re.fullmatch(r"\d{4}-\d{2}(-\d{2})?", due):
+        raise HTTPException(400, "출산예정일은 연·월(2026-10) 또는 연·월·일(2026-10-15) 형식으로 입력해 주세요.")
+
+    center_use = payload.center_use.strip()
+    if center_use and center_use not in db.CENTER_USE_OPTIONS:
+        raise HTTPException(400, "산후조리원 이용 여부를 다시 선택해 주세요.")
+    period = payload.center_period.strip()
+    if period and period not in db.CENTER_PERIOD_OPTIONS:
+        raise HTTPException(400, "산후조리원 이용 기간을 다시 선택해 주세요.")
+    if center_use != "이용함":
+        period = ""          # 이용하지 않으면 기간은 남기지 않는다
     return {
         "mother_name": payload.mother_name.strip(),
         "mother_phone": db.normalize_phone(payload.mother_phone),
@@ -177,7 +189,9 @@ def _clean(payload: ApplicationIn) -> dict:
         "relation_detail": payload.relation_detail.strip(),
         "due_date": due,
         "service_days": days,
-        "health_center_code": payload.health_center_code.strip(),
+        "voucher_code": payload.voucher_code.strip(),
+        "center_use": center_use,
+        "center_period": period,
         "memo": payload.memo.strip(),
         "consents": {k: bool(payload.consents.get(k)) for k in db.CONSENT_KEYS},
         "kakao_friend": 1 if payload.kakao_friend else 0,
@@ -190,6 +204,7 @@ REQUIRED_FIELDS = [
     ("helper_name", "산후도우미 이름"),
     ("helper_phone", "산후도우미 연락처"),
     ("due_date", "출산예정일"),
+    ("center_use", "산후조리원 이용 여부"),
 ]
 
 
@@ -240,9 +255,16 @@ def info():
             {"key": "helper_relation", "label": "산모와의 관계(가족/지인)", "required": True},
             {"key": "service_days", "label": "이용예정기간", "required": True,
              "options": db.SERVICE_DAY_OPTIONS, "default": db.DEFAULT_SERVICE_DAYS},
-            {"key": "health_center_code", "label": "보건소 지정 최종이용코드", "required": False,
-             "note": "모르면 비워두고 넘어가도 됩니다. 나중에 추가 입력할 수 있습니다."},
+            {"key": "center_period", "label": "산후조리원 이용 기간", "required": False,
+             "options": db.CENTER_PERIOD_OPTIONS,
+             "note": "산후조리원을 이용하시는 경우에만 선택합니다. 기간이 정해지지 않았으면 '미정'을 고르세요."},
+            {"key": "voucher_code", "label": "바우처 구분코드", "required": False,
+             "note": db.VOUCHER_CODE_HELP},
         ],
+        "voucher_code_example": db.VOUCHER_CODE_EXAMPLE,
+        "voucher_code_help": db.VOUCHER_CODE_HELP,
+        "center_use_options": db.CENTER_USE_OPTIONS,
+        "center_period_options": db.CENTER_PERIOD_OPTIONS,
         "service_days_options": db.SERVICE_DAY_OPTIONS,
         "service_days_default": db.DEFAULT_SERVICE_DAYS,
         "statuses": db.STATUS_LABELS,
@@ -264,14 +286,16 @@ def create_application(payload: ApplicationIn, request: Request):
         agreed = any(fields["consents"].values())
         cur = conn.execute(
             "INSERT INTO applications(code, token, mother_name, mother_phone, helper_name, helper_phone,"
-            " helper_relation, relation_detail, due_date, service_days, health_center_code, memo,"
+            " helper_relation, relation_detail, due_date, service_days, voucher_code,"
+            " center_use, center_period, memo,"
             " consents, consent_at, consent_version, kakao_friend, event_applied,"
             " status, created_at, updated_at, submitted_at)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 code, token, fields["mother_name"], fields["mother_phone"], fields["helper_name"],
                 fields["helper_phone"], fields["helper_relation"], fields["relation_detail"],
-                fields["due_date"], fields["service_days"], fields["health_center_code"], fields["memo"],
+                fields["due_date"], fields["service_days"], fields["voucher_code"],
+                fields["center_use"], fields["center_period"], fields["memo"],
                 json.dumps(fields["consents"], ensure_ascii=False), ts if agreed else "",
                 db.CONSENT_VERSION if agreed else "", fields["kakao_friend"], fields["kakao_friend"],
                 status, ts, ts, ts if payload.submit else "",
@@ -300,25 +324,39 @@ def get_application(code: str, token: str = Query(default="")):
 
 
 class LookupIn(BaseModel):
-    code: str = Field(default="", max_length=40)
+    mother_name: str = Field(default="", max_length=40)
     phone: str = Field(default="", max_length=30)
+    helper_name: str = Field(default="", max_length=40)
 
 
 @app.post("/api/applications/lookup")
 def lookup(payload: LookupIn, request: Request):
-    """접수번호 + 산모 연락처로 조회코드(토큰)를 되찾는다."""
+    """산모 이름 + 산모 연락처 + 산후도우미 이름, 세 가지가 모두 맞아야 조회된다.
+
+    접수번호를 적어두지 않아도 본인 정보만으로 찾을 수 있게 하려는 것이다.
+    같은 사람이 여러 건을 넣었으면 가장 최근 건을 돌려준다.
+    """
     _throttle(f"lookup:{_client_ip(request)}", limit=12)
-    code = payload.code.strip().upper()
+    mother = payload.mother_name.strip()
+    helper = payload.helper_name.strip()
     digits = db.phone_digits(payload.phone)
-    if not code or not digits:
-        raise HTTPException(400, "접수번호와 산모 연락처를 모두 입력해 주세요.")
+    if not (mother and helper and digits):
+        raise HTTPException(400, "산모 이름, 산모 연락처, 산후도우미 이름을 모두 입력해 주세요.")
     with db.db() as conn:
-        row = conn.execute("SELECT * FROM applications WHERE code=?", (code,)).fetchone()
-        if row is None or db.phone_digits(row["mother_phone"]) != digits:
-            raise HTTPException(404, "일치하는 신청 내역이 없습니다. 접수번호와 연락처를 확인해 주세요.")
-        data = _detail(conn, row)
-        data["token"] = row["token"]
-        return data
+        rows = conn.execute(
+            "SELECT * FROM applications WHERE mother_name=? AND helper_name=? ORDER BY id DESC",
+            (mother, helper),
+        ).fetchall()
+        for row in rows:
+            if db.phone_digits(row["mother_phone"]) == digits:
+                data = _detail(conn, row)
+                data["token"] = row["token"]
+                return data
+    raise HTTPException(
+        404,
+        "일치하는 신청 내역이 없습니다. 신청서에 적으신 산모 이름·연락처와 "
+        "산후도우미 이름이 정확한지 확인해 주세요.",
+    )
 
 
 @app.patch("/api/applications/{code}")
@@ -331,13 +369,15 @@ def update_application(code: str, payload: ApplicationIn, token: str = Query(def
         agreed = any(fields["consents"].values())
         conn.execute(
             "UPDATE applications SET mother_name=?, mother_phone=?, helper_name=?, helper_phone=?,"
-            " helper_relation=?, relation_detail=?, due_date=?, service_days=?, health_center_code=?,"
+            " helper_relation=?, relation_detail=?, due_date=?, service_days=?, voucher_code=?,"
+            " center_use=?, center_period=?,"
             " memo=?, consents=?, consent_at=?, consent_version=?, kakao_friend=?, updated_at=?"
             " WHERE id=?",
             (
                 fields["mother_name"], fields["mother_phone"], fields["helper_name"], fields["helper_phone"],
                 fields["helper_relation"], fields["relation_detail"], fields["due_date"],
-                fields["service_days"], fields["health_center_code"], fields["memo"],
+                fields["service_days"], fields["voucher_code"],
+                fields["center_use"], fields["center_period"], fields["memo"],
                 json.dumps(fields["consents"], ensure_ascii=False),
                 db.now() if agreed else row["consent_at"],
                 db.CONSENT_VERSION if agreed else row["consent_version"],

@@ -183,3 +183,6 @@ dialog::backdrop { background: rgba(20,10,14,.45); }
             padding-top: 11px; border-top: 1px dashed var(--border); font-size: 12.8px; }
 .agree dt { color: var(--muted); }
 .agree dd { margin: 0; }
+
+.row-2 { display: grid; grid-template-columns: 1fr 130px; gap: 8px; }
+@media (max-width: 420px) { .row-2 { grid-template-columns: 1fr; } }

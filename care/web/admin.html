@@ -57,7 +57,7 @@
           <table class="list">
             <thead><tr>
               <th>접수번호</th><th>산모</th><th>산후도우미</th><th>관계</th>
-              <th>출산예정일</th><th>기간</th><th>서류</th><th>상태</th><th>최근 변경</th>
+              <th>출산예정일</th><th>기간</th><th>조리원</th><th>서류</th><th>상태</th><th>최근 변경</th>
             </tr></thead>
             <tbody id="rows"></tbody>
           </table>
@@ -286,10 +286,12 @@
         return '<tr class="click" data-code="' + E(a.code) + '">' +
           "<td class='mono'>" + E(a.code) + "</td><td>" + E(a.mother_name || "-") + "</td>" +
           "<td>" + E(a.helper_name || "-") + "</td><td>" + E(a.helper_relation) + "</td>" +
-          "<td>" + E(a.due_date || "-") + "</td><td>" + days + "</td><td>" + docs + "</td>" +
+          "<td>" + E(fmtDue(a.due_date)) + "</td><td>" + days + "</td>" +
+          "<td class='small'>" + E(a.center_use ? (a.center_period || a.center_use) : "-") + "</td>" +
+          "<td>" + docs + "</td>" +
           '<td><span class="badge ' + Care.statusBadgeClass(a.status) + '">' + E(a.status_label) + "</span></td>" +
           "<td class='small muted'>" + Care.fmtDate(a.updated_at) + "</td></tr>";
-      }).join("") : '<tr><td colspan="9" class="muted small">신청 내역이 없습니다.</td></tr>';
+      }).join("") : '<tr><td colspan="10" class="muted small">신청 내역이 없습니다.</td></tr>';
       el("rows").querySelectorAll("tr.click").forEach(function (tr) {
         tr.onclick = function () { openDetail(tr.dataset.code); };
       });
@@ -306,6 +308,13 @@
   }
   el("d-close").onclick = function () { el("detail-panel").classList.add("hidden"); };
 
+  function fmtDue(v) {
+    var p = (v || "").split("-");
+    if (p.length === 3) return p[0] + "년 " + Number(p[1]) + "월 " + Number(p[2]) + "일";
+    if (p.length === 2) return p[0] + "년 " + Number(p[1]) + "월 (일자 미정)";
+    return v || "-";
+  }
+
   function renderDetail(a) {
     current = a;
     el("detail-panel").classList.remove("hidden");
@@ -317,9 +326,10 @@
     const rows = [
       ["산모 이름", a.mother_name], ["산모 연락처", a.mother_phone],
       ["산후도우미", a.helper_name], ["도우미 연락처", a.helper_phone],
-      ["관계", rel], ["출산예정일", a.due_date],
+      ["관계", rel], ["출산예정일", fmtDue(a.due_date)],
       ["이용예정기간", a.service_days + (a.service_days >= 25 ? "일 이상" : "일")],
-      ["보건소 이용코드", a.health_center_code || "미입력"],
+      ["산후조리원", a.center_use ? a.center_use + (a.center_period ? " · " + a.center_period : "") : "-"],
+      ["바우처 구분코드", a.voucher_code || "미입력"],
       ["남긴 말씀", a.memo], ["접수일시", a.submitted_at ? Care.fmtDate(a.submitted_at) : "미접수"],
       ["최종확인", a.confirmed_at ? Care.fmtDate(a.confirmed_at) : "-"]
     ];

@@ -35,7 +35,8 @@ SCOPES = [
 APP_SHEET = "신청"
 APP_HEADER = [
     "접수번호", "상태", "산모이름", "산모연락처", "산후도우미", "도우미연락처",
-    "관계", "관계상세", "출산예정일", "이용예정기간", "보건소이용코드", "남긴말씀",
+    "관계", "관계상세", "출산예정일", "이용예정기간", "산후조리원", "조리원기간",
+    "바우처구분코드", "남긴말씀",
     "관리자메시지", "부족서류", "제출서류", "미제출서류", "서류링크",
     "접수일시", "최종확인일시", "최종수정",
 ]
@@ -175,7 +176,8 @@ def application_row(app: dict, docs: list[dict]) -> list:
         app.get("helper_relation", ""), app.get("relation_detail", ""),
         app.get("due_date", ""),
         f"{days}일 이상" if days >= 25 else (f"{days}일" if days else ""),
-        app.get("health_center_code", ""), app.get("memo", ""),
+        app.get("center_use", ""), app.get("center_period", ""),
+        app.get("voucher_code", ""), app.get("memo", ""),
         app.get("admin_message", ""),
         ", ".join(db.DOC_LABELS.get(k, k) for k in app.get("missing_docs", [])),
         ", ".join(dict.fromkeys(submitted)),

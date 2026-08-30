@@ -42,7 +42,9 @@ FORM = {
     "relation_detail": "친정어머니",
     "due_date": "2026-10-15",
     "service_days": 20,
-    "health_center_code": "",
+    "voucher_code": "",
+    "center_use": "이용함",
+    "center_period": "2주",
     "consents": {"privacy": True, "sensitive": True, "kakao": True, "marketing": False},
     "kakao_friend": True,
 }
@@ -66,9 +68,9 @@ def test_info_lists_documents_and_fields_before_applying(client):
     assert info["service_days_options"] == [5, 10, 15, 20, 25]
     field_keys = {f["key"] for f in info["fields"]}
     assert {"mother_name", "mother_phone", "helper_name", "helper_phone", "due_date",
-            "service_days", "health_center_code"} <= field_keys
+            "service_days", "voucher_code"} <= field_keys
     # 보건소 코드는 선택 항목 — 모르면 넘어갈 수 있어야 한다
-    assert next(f for f in info["fields"] if f["key"] == "health_center_code")["required"] is False
+    assert next(f for f in info["fields"] if f["key"] == "voucher_code")["required"] is False
 
 
 def test_submit_without_any_document_is_auto_approved(client):
@@ -152,14 +154,38 @@ def test_wrong_token_cannot_read_or_upload(client):
     assert res.status_code == 404
 
 
-def test_lookup_by_code_and_phone(client):
+def test_lookup_by_three_fields(client):
+    """접수번호 없이 산모 이름·연락처·산후도우미 이름 세 가지로 찾는다."""
     app = client.post("/api/applications", json={**FORM, "submit": True}).json()
-    found = client.post("/api/applications/lookup",
-                        json={"code": app["code"].lower(), "phone": "010 1234 5678"}).json()
+    found = client.post("/api/applications/lookup", json={
+        "mother_name": "김산모", "phone": "010 1234 5678", "helper_name": "이도우미"}).json()
     assert found["token"] == app["token"]
+    assert found["code"] == app["code"]
 
-    bad = client.post("/api/applications/lookup", json={"code": app["code"], "phone": "01099999999"})
-    assert bad.status_code == 404
+
+@pytest.mark.parametrize("wrong", [
+    {"mother_name": "박산모", "phone": "01012345678", "helper_name": "이도우미"},
+    {"mother_name": "김산모", "phone": "01099999999", "helper_name": "이도우미"},
+    {"mother_name": "김산모", "phone": "01012345678", "helper_name": "최도우미"},
+])
+def test_lookup_needs_all_three_to_match(client, wrong):
+    client.post("/api/applications", json={**FORM, "submit": True})
+    assert client.post("/api/applications/lookup", json=wrong).status_code == 404
+
+
+def test_lookup_requires_every_field(client):
+    res = client.post("/api/applications/lookup",
+                      json={"mother_name": "김산모", "phone": "", "helper_name": "이도우미"})
+    assert res.status_code == 400
+    assert "산후도우미 이름" in res.json()["detail"]
+
+
+def test_lookup_returns_most_recent_when_applied_twice(client):
+    client.post("/api/applications", json={**FORM, "submit": True})
+    second = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    found = client.post("/api/applications/lookup", json={
+        "mother_name": "김산모", "phone": "01012345678", "helper_name": "이도우미"}).json()
+    assert found["code"] == second["code"]
 
 
 def test_reject_then_upload_missing_docs_then_resubmit(client):
@@ -343,15 +369,15 @@ def test_consultation_request(client):
     assert client.post("/api/consultations", json={"name": "홍길동", "phone": "없음"}).status_code == 400
 
 
-def test_patch_updates_fields_including_late_health_center_code(client):
+def test_patch_updates_fields_including_late_voucher_code(client):
     """보건소 코드를 몰라 비워둔 뒤 나중에 채워 넣을 수 있다."""
     app = client.post("/api/applications", json={**FORM, "submit": True}).json()
     code, token = app["code"], app["token"]
-    assert app["health_center_code"] == ""
+    assert app["voucher_code"] == ""
 
     updated = client.patch(f"/api/applications/{code}?token={token}",
-                           json={**FORM, "health_center_code": "SEOUL-2026-0001", "service_days": 25}).json()
-    assert updated["health_center_code"] == "SEOUL-2026-0001"
+                           json={**FORM, "voucher_code": "SEOUL-2026-0001", "service_days": 25}).json()
+    assert updated["voucher_code"] == "SEOUL-2026-0001"
     assert updated["service_days"] == 25
 
 
@@ -368,3 +394,48 @@ def test_invalid_input_normalization(client):
 def test_pages_are_served(client):
     for path in ("/", "/apply.html", "/status.html", "/admin.html", "/app.css", "/app.js"):
         assert client.get(path).status_code == 200, path
+
+
+def test_due_date_month_only_is_allowed(client):
+    """일자가 미정이면 연·월까지만 받아도 접수된다."""
+    app = client.post("/api/applications", json={**FORM, "due_date": "2026-10", "submit": True}).json()
+    assert app["due_date"] == "2026-10"
+
+    exact = client.post("/api/applications", json={**FORM, "due_date": "2026-10-15", "submit": True}).json()
+    assert exact["due_date"] == "2026-10-15"
+
+    bad = client.post("/api/applications", json={**FORM, "due_date": "2026", "submit": True})
+    assert bad.status_code == 400
+    assert "연·월" in bad.json()["detail"]
+
+
+def test_postpartum_center_fields(client):
+    app = client.post("/api/applications",
+                      json={**FORM, "center_use": "이용함", "center_period": "4주 이상", "submit": True}).json()
+    assert app["center_use"] == "이용함" and app["center_period"] == "4주 이상"
+
+    # 이용하지 않으면 기간은 남기지 않는다
+    none = client.post("/api/applications",
+                       json={**FORM, "center_use": "이용 안 함", "center_period": "2주", "submit": True}).json()
+    assert none["center_period"] == ""
+
+    assert client.post("/api/applications",
+                       json={**FORM, "center_use": "가끔", "submit": True}).status_code == 400
+    assert client.post("/api/applications",
+                       json={**FORM, "center_period": "6주", "submit": True}).status_code == 400
+
+
+def test_center_use_is_required_to_submit(client):
+    res = client.post("/api/applications", json={**FORM, "center_use": "", "submit": True})
+    assert res.status_code == 400 and "산후조리원 이용 여부" in res.json()["detail"]
+    draft = client.post("/api/applications", json={**FORM, "center_use": "", "submit": False}).json()
+    assert draft["status"] == "draft"
+
+
+def test_voucher_code_guidance_is_public(client):
+    info = client.get("/api/info").json()
+    assert info["voucher_code_example"] == "A-통합-1형"
+    assert "복지로" in info["voucher_code_help"] and "보건소" in info["voucher_code_help"]
+    field = next(f for f in info["fields"] if f["key"] == "voucher_code")
+    assert field["label"] == "바우처 구분코드" and field["required"] is False
+    assert info["center_period_options"] == ["1주", "2주", "3주", "4주 이상", "미정"]

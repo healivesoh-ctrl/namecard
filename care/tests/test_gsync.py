@@ -22,7 +22,9 @@ FORM = {
     "mother_name": "김산모", "mother_phone": "01012345678",
     "helper_name": "이도우미", "helper_phone": "01098765432",
     "helper_relation": "가족", "relation_detail": "친정어머니",
-    "due_date": "2026-10-15", "service_days": 15, "health_center_code": "",
+    "due_date": "2026-10-15", "service_days": 15, "voucher_code": "",
+    "center_use": "이용함",
+    "center_period": "2주",
     "consents": {"privacy": True, "sensitive": True, "kakao": True, "marketing": False},
     "kakao_friend": True,
 }
@@ -172,13 +174,13 @@ def test_row_is_updated_not_duplicated(setup):
     client.post(f"/api/admin/applications/{code}/status", headers=ADMIN,
                 json={"status": "reviewing", "message": "확인중"})
     client.patch(f"/api/applications/{code}?token={token}",
-                 json={**FORM, "health_center_code": "SEOUL-0001"})
+                 json={**FORM, "voucher_code": "SEOUL-0001"})
     _wait(gsync)
 
     assert len(fake.rows("신청")) == 1
     cols = dict(zip(gsync.APP_HEADER, fake.row_for("신청", code)))
     assert cols["상태"] == "서류 검토중"
-    assert cols["보건소이용코드"] == "SEOUL-0001"
+    assert cols["바우처구분코드"] == "SEOUL-0001"
 
 
 def test_second_application_appends(setup):

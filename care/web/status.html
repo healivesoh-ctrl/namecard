@@ -19,12 +19,18 @@
   <!-- 조회 폼 (링크 없이 들어온 경우) -->
   <section class="panel" id="lookup-panel">
     <h1>내 신청 조회</h1>
-    <p class="lead">접수번호와 산모 연락처를 입력하면 진행 상황을 확인하고 서류를 추가할 수 있습니다.</p>
+    <p class="lead">
+      <strong>신청서에 적으신 산모 이름, 산모 연락처, 산후도우미 이름</strong> 세 가지를 입력하시면
+      진행 상황을 확인하고 서류를 추가하실 수 있습니다. 접수번호는 없어도 됩니다.
+    </p>
     <form id="lookup-form">
-      <label class="field"><span class="lbl">접수번호<em>*</em></span>
-        <input name="code" placeholder="DA-260830-7K3Q" autocapitalize="characters" class="mono"></label>
+      <label class="field"><span class="lbl">산모 이름<em>*</em></span>
+        <input name="mother_name" maxlength="40" placeholder="예: 김산모" autocomplete="off"></label>
       <label class="field"><span class="lbl">산모 연락처<em>*</em></span>
         <input name="phone" inputmode="numeric" maxlength="13" placeholder="010-0000-0000"></label>
+      <label class="field"><span class="lbl">산후도우미 이름<em>*</em></span>
+        <input name="helper_name" maxlength="40" placeholder="예: 이도우미" autocomplete="off">
+        <div class="help">가족 또는 지인 산후도우미로 신청서에 적으신 분의 이름입니다.</div></label>
       <div class="btn-row"><button class="primary" type="submit">조회하기</button></div>
     </form>
     <div id="saved-list" class="doc-list" style="margin-top:16px"></div>
@@ -231,14 +237,23 @@
       .catch(function (e) { Care.toast(e.message, true); input.disabled = false; input.value = ""; });
   }
 
+  // 일자가 미정이면 "2026년 10월 (일자 미정)" 으로 보여준다
+  function fmtDue(v) {
+    var p = (v || "").split("-");
+    if (p.length === 3) return p[0] + "년 " + Number(p[1]) + "월 " + Number(p[2]) + "일";
+    if (p.length === 2) return p[0] + "년 " + Number(p[1]) + "월 (일자 미정)";
+    return v || "";
+  }
+
   function renderInfo(app) {
     const rel = app.helper_relation + (app.relation_detail ? " (" + app.relation_detail + ")" : "");
     const rows = [
       ["산모 이름", app.mother_name], ["산모 연락처", app.mother_phone],
       ["산후도우미", app.helper_name], ["도우미 연락처", app.helper_phone],
-      ["관계", rel], ["출산예정일", app.due_date],
+      ["관계", rel], ["출산예정일", fmtDue(app.due_date)],
       ["이용예정기간", app.service_days ? app.service_days + (app.service_days >= 25 ? "일 이상" : "일") : ""],
-      ["보건소 이용코드", app.health_center_code || "미입력 (나중에 추가 가능)"],
+      ["산후조리원", app.center_use ? app.center_use + (app.center_period ? " · " + app.center_period : "") : ""],
+      ["바우처 구분코드", app.voucher_code || "미입력 (나중에 추가 가능)"],
       ["남긴 말씀", app.memo], ["접수일시", app.submitted_at ? Care.fmtDate(app.submitted_at) : "미접수"]
     ];
     el("info-kv").innerHTML = rows.map(function (r) {
@@ -290,7 +305,11 @@
     ev.preventDefault();
     Care.api("/api/applications/lookup", {
       method: "POST",
-      body: { code: lookupForm.code.value.trim(), phone: lookupForm.phone.value.trim() }
+      body: {
+        mother_name: lookupForm.mother_name.value.trim(),
+        phone: lookupForm.phone.value.trim(),
+        helper_name: lookupForm.helper_name.value.trim()
+      }
     }).then(function (app) {
       code = app.code; token = app.token;
       history.replaceState(null, "", "?code=" + encodeURIComponent(code) + "&token=" + encodeURIComponent(token));

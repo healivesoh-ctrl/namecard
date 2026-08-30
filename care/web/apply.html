@@ -25,7 +25,7 @@
 
     <div class="notice info" id="required-note">
       <strong>필수 입력</strong>
-      산모 이름 · 산모 연락처 · 산후도우미 이름 · 산후도우미 연락처 · 출산예정일
+      산모 이름 · 산모 연락처 · 산후도우미 이름 · 산후도우미 연락처 · 출산예정일 · 산후조리원 이용 여부
     </div>
 
     <form id="form">
@@ -54,17 +54,39 @@
       </div>
 
       <label class="field"><span class="lbl">출산예정일<em>*</em></span>
-        <input name="due_date" type="date">
-        <div class="help">이미 출산하셨다면 실제 출산일을 입력해 주세요.</div></label>
+        <div class="row-2">
+          <input name="due_month" type="month" aria-label="출산예정 연·월">
+          <select name="due_day" aria-label="출산예정일">
+            <option value="">일자 미정</option>
+          </select>
+        </div>
+        <div class="help">일자가 아직 정해지지 않았다면 <strong>월까지만</strong> 선택하셔도 됩니다.
+          날짜까지 아시면 함께 골라주시면 일정 조율이 더 정확해집니다.
+          이미 출산하셨다면 실제 출산일을 선택해 주세요.</div></label>
 
       <label class="field"><span class="lbl">이용예정기간<em>*</em></span>
         <div class="chips" id="days-chips"></div>
         <input type="hidden" name="service_days" value="15">
         <div class="help">기본 15일입니다. 정부지원 유형에 따라 조정될 수 있습니다.</div></label>
 
-      <label class="field"><span class="lbl">보건소 지정 최종이용코드</span>
-        <input name="health_center_code" maxlength="40" placeholder="모르면 비워두고 넘어가세요">
-        <div class="help">보건소에서 받은 이용권 코드입니다. 지금 모르셔도 접수에는 문제가 없고, 나중에 추가 입력할 수 있습니다.</div></label>
+      <label class="field"><span class="lbl">산후조리원 이용<em>*</em></span>
+        <div class="chips" id="center-chips">
+          <div class="chip" data-value="이용함">이용함</div>
+          <div class="chip" data-value="이용 안 함">이용 안 함</div>
+        </div>
+        <input type="hidden" name="center_use" value=""></label>
+
+      <label class="field hidden" id="center-period-field"><span class="lbl">산후조리원 이용 기간</span>
+        <div class="chips" id="period-chips"></div>
+        <input type="hidden" name="center_period" value="">
+        <div class="help">기간이 아직 정해지지 않았다면 <strong>미정</strong>을 선택하세요.</div></label>
+
+      <label class="field"><span class="lbl">바우처 구분코드</span>
+        <input name="voucher_code" maxlength="40" placeholder="예: A-통합-1형">
+        <div class="help" id="voucher-help">
+          보건소를 방문하시거나 복지로(bokjiro.go.kr)에서 신청하시면 받는 코드입니다.
+          아직 모르시면 비워두고 넘어가셔도 되고, 나중에 추가로 입력하실 수 있습니다.
+        </div></label>
 
       <label class="field"><span class="lbl">추가로 남길 말씀</span>
         <textarea name="memo" maxlength="1000" placeholder="문의사항이나 참고할 내용이 있으면 적어주세요 (선택)"></textarea></label>
@@ -144,6 +166,36 @@
   bindChips("relation-chips", "helper_relation");
   bindChips("days-chips", "service_days");
 
+  // 산후조리원 이용 여부 — "이용함"일 때만 기간을 묻는다
+  var PERIODS = ["1주", "2주", "3주", "4주 이상", "미정"];
+  document.getElementById("period-chips").innerHTML = PERIODS.map(function (v) {
+    return '<div class="chip" data-value="' + v + '">' + v + "</div>";
+  }).join("");
+  bindChips("center-chips", "center_use");
+  bindChips("period-chips", "center_period");
+  document.getElementById("center-chips").addEventListener("click", function () {
+    var use = form.center_use.value === "이용함";
+    document.getElementById("center-period-field").classList.toggle("hidden", !use);
+    if (!use) {
+      form.center_period.value = "";
+      document.querySelectorAll("#period-chips .chip").forEach(function (c) { c.classList.remove("on"); });
+    }
+  });
+
+  // 출산예정일 — 월은 필수, 일자는 미정 가능
+  var daySel = form.due_day;
+  for (var d = 1; d <= 31; d++) {
+    var o = document.createElement("option");
+    o.value = String(d).padStart(2, "0");
+    o.textContent = d + "일";
+    daySel.appendChild(o);
+  }
+  function dueDate() {
+    var m = form.due_month.value;
+    if (!m) return "";
+    return form.due_day.value ? m + "-" + form.due_day.value : m;
+  }
+
   function selectChip(containerId, value) {
     document.getElementById(containerId).querySelectorAll(".chip").forEach(function (c) {
       c.classList.toggle("on", c.dataset.value === String(value));
@@ -219,9 +271,11 @@
       helper_phone: form.helper_phone.value.trim(),
       helper_relation: form.helper_relation.value,
       relation_detail: form.relation_detail.value.trim(),
-      due_date: form.due_date.value,
+      due_date: dueDate(),
       service_days: Number(form.service_days.value) || 15,
-      health_center_code: form.health_center_code.value.trim(),
+      voucher_code: form.voucher_code.value.trim(),
+      center_use: form.center_use.value,
+      center_period: form.center_period.value,
       memo: form.memo.value.trim(),
       consents: readConsents(),
       kakao_friend: document.getElementById("kakao-friend").checked,
@@ -277,13 +331,21 @@
         form.helper_name.value = a.helper_name || "";
         form.helper_phone.value = a.helper_phone || "";
         form.relation_detail.value = a.relation_detail || "";
-        form.due_date.value = a.due_date || "";
-        form.health_center_code.value = a.health_center_code || "";
+        var due = (a.due_date || "").split("-");
+        form.due_month.value = due.length >= 2 ? due[0] + "-" + due[1] : "";
+        form.due_day.value = due.length === 3 ? due[2] : "";
+        form.voucher_code.value = a.voucher_code || "";
         form.memo.value = a.memo || "";
         form.helper_relation.value = a.helper_relation || "가족";
         form.service_days.value = a.service_days || 15;
         selectChip("relation-chips", a.helper_relation || "가족");
         selectChip("days-chips", a.service_days || 15);
+        form.center_use.value = a.center_use || "";
+        form.center_period.value = a.center_period || "";
+        selectChip("center-chips", a.center_use || "");
+        selectChip("period-chips", a.center_period || "");
+        document.getElementById("center-period-field")
+          .classList.toggle("hidden", a.center_use !== "이용함");
         document.getElementById("kakao-friend").checked = !!a.kakao_friend;
         Object.keys(a.consents || {}).forEach(function (k) {
           var el = document.getElementById("consent-" + k);

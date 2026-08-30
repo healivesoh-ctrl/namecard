@@ -18,7 +18,9 @@ FORM = {
     "mother_name": "김서연", "mother_phone": "01023457788",
     "helper_name": "이복순", "helper_phone": "01034561234",
     "helper_relation": "가족", "relation_detail": "친정어머니",
-    "due_date": "2026-09-20", "service_days": 15, "health_center_code": "",
+    "due_date": "2026-09-20", "service_days": 15, "voucher_code": "",
+    "center_use": "이용함",
+    "center_period": "2주",
     "consents": CONSENTS, "kakao_friend": True,
 }
 
