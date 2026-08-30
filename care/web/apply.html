@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>신청서 작성 | 다이음 다이렉트</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A4%B1%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <a class="brand" href="./">다이음 <span>다이렉트</span></a>
+    <div class="spacer"></div>
+    <a class="nav" href="status.html">내 신청 조회</a>
+  </div>
+
+  <section class="panel">
+    <h1 id="page-title">신청서 작성</h1>
+    <p class="lead" id="page-lead">
+      서류는 접수 후에 올려도 됩니다. 지금은 아래 정보만 입력해 주세요.
+      <br>바로 접수하기 어려우면 <strong>임시저장</strong>해두고 나중에 이어서 작성할 수 있습니다.
+    </p>
+
+    <div class="notice info" id="required-note">
+      <strong>필수 입력</strong>
+      산모 이름 · 산모 연락처 · 산후도우미 이름 · 산후도우미 연락처 · 출산예정일 · 산후조리원 이용 여부
+    </div>
+
+    <form id="form">
+      <div class="two-col">
+        <label class="field"><span class="lbl">산모 이름<em>*</em></span>
+          <input name="mother_name" maxlength="40" placeholder="예: 김산모" autocomplete="off"></label>
+        <label class="field"><span class="lbl">산모 연락처<em>*</em></span>
+          <input name="mother_phone" inputmode="numeric" maxlength="13" placeholder="010-0000-0000"></label>
+      </div>
+
+      <label class="field"><span class="lbl">산모와 산후도우미의 관계<em>*</em></span>
+        <div class="chips" id="relation-chips">
+          <div class="chip on" data-value="가족">가족관계</div>
+          <div class="chip" data-value="지인">지인관계</div>
+        </div>
+        <input type="hidden" name="helper_relation" value="가족">
+        <input name="relation_detail" maxlength="40" placeholder="예: 친정어머니 / 시어머니 / 언니 / 이웃" style="margin-top:8px">
+        <div class="help">구체적인 관계를 적어주시면 서류 검토가 빨라집니다. (선택)</div>
+      </label>
+
+      <div class="two-col">
+        <label class="field"><span class="lbl">산후도우미 이름<em>*</em></span>
+          <input name="helper_name" maxlength="40" placeholder="예: 이도우미" autocomplete="off"></label>
+        <label class="field"><span class="lbl">산후도우미 연락처<em>*</em></span>
+          <input name="helper_phone" inputmode="numeric" maxlength="13" placeholder="010-0000-0000"></label>
+      </div>
+
+      <label class="field"><span class="lbl">출산예정일<em>*</em></span>
+        <div class="row-2">
+          <input name="due_month" type="month" aria-label="출산예정 연·월">
+          <select name="due_day" aria-label="출산예정일">
+            <option value="">일자 미정</option>
+          </select>
+        </div>
+        <div class="help">일자가 아직 정해지지 않았다면 <strong>월까지만</strong> 선택하셔도 됩니다.
+          날짜까지 아시면 함께 골라주시면 일정 조율이 더 정확해집니다.
+          이미 출산하셨다면 실제 출산일을 선택해 주세요.</div></label>
+
+      <label class="field"><span class="lbl">이용예정기간<em>*</em></span>
+        <div class="chips" id="days-chips"></div>
+        <input type="hidden" name="service_days" value="15">
+        <div class="help">기본 15일입니다. 정부지원 유형에 따라 조정될 수 있습니다.</div></label>
+
+      <label class="field"><span class="lbl">산후조리원 이용<em>*</em></span>
+        <div class="chips" id="center-chips">
+          <div class="chip" data-value="이용함">이용함</div>
+          <div class="chip" data-value="이용 안 함">이용 안 함</div>
+        </div>
+        <input type="hidden" name="center_use" value=""></label>
+
+      <label class="field hidden" id="center-period-field"><span class="lbl">산후조리원 이용 기간</span>
+        <div class="chips" id="period-chips"></div>
+        <input type="hidden" name="center_period" value="">
+        <div class="help">기간이 아직 정해지지 않았다면 <strong>미정</strong>을 선택하세요.</div></label>
+
+      <label class="field"><span class="lbl">바우처 구분코드</span>
+        <input name="voucher_code" maxlength="40" placeholder="예: A-통합-1형">
+        <div class="help" id="voucher-help">
+          보건소를 방문하시거나 복지로(bokjiro.go.kr)에서 신청하시면 받는 코드입니다.
+          아직 모르시면 비워두고 넘어가셔도 되고, 나중에 추가로 입력하실 수 있습니다.
+        </div></label>
+
+      <label class="field"><span class="lbl">다이음 다이렉트를 어떻게 알게 되셨나요?</span>
+        <div class="chips" id="referral-chips"></div>
+        <input type="hidden" name="referral" value="">
+        <input name="referral_detail" class="hidden" maxlength="60"
+               placeholder="어떻게 알게 되셨는지 알려주세요" style="margin-top:8px">
+        <div class="help">더 나은 안내를 준비하는 데 참고합니다. 답하지 않으셔도 접수에는 영향이 없습니다.</div></label>
+
+      <label class="field"><span class="lbl">추가로 남길 말씀</span>
+        <textarea name="memo" maxlength="1000" placeholder="문의사항이나 참고할 내용이 있으면 적어주세요 (선택)"></textarea></label>
+
+      <!-- 카카오채널 친구추가 (접수 필수) -->
+      <div class="panel kakao-panel" style="margin:22px 0 16px; box-shadow:none">
+        <h2><span id="channel-name">다이음</span> 카카오채널 친구추가 <span class="badge bad">필수</span></h2>
+        <p class="lead"><strong>접수가 끝나면 카카오톡에서 진행 사항을 조회</strong>하실 수 있습니다.
+           접수번호, 서류 검토 결과, 보완요청 안내가 모두 채널로 발송되고 메시지에서 바로 확인 화면이 열립니다.</p>
+        <div class="btn-row" style="margin-bottom:12px">
+          <a class="btn primary" id="channel-link" href="#" target="_blank" rel="noopener">채널 친구추가하러 가기</a>
+        </div>
+        <div class="agree">
+          <div class="agree-row">
+            <input type="checkbox" id="kakao-friend">
+            <label class="t" for="kakao-friend">다이음 채널 친구추가를 완료했습니다.</label>
+          </div>
+          <p class="help" style="margin:8px 0 0 30px">
+            진행 안내를 채널로 받으시게 됩니다. 채널을 그대로 두시면 매달 바뀌는 급여와 이벤트 소식도
+            먼저 받아보실 수 있습니다. <strong>이벤트 혜택은 채널을 친구추가하신 분께 적용</strong>됩니다.
+          </p>
+        </div>
+      </div>
+
+      <!-- 개인정보 동의 -->
+      <div style="margin-bottom:18px">
+        <h2 style="font-size:15px; font-weight:700; margin-bottom:4px">개인정보 수집·이용 동의</h2>
+        <p class="help" style="margin-bottom:10px">각 항목의 <strong>자세히</strong>를 눌러 수집 목적과 보유기간을 확인하실 수 있습니다.</p>
+        <div class="agree all">
+          <div class="agree-row">
+            <input type="checkbox" id="agree-all">
+            <label class="t" for="agree-all">아래 항목에 모두 동의합니다 (선택 항목 포함)</label>
+          </div>
+        </div>
+        <div id="consent-boxes" style="margin-top:9px"></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="primary" type="button" id="btn-submit">접수하기 (자동 승인)</button>
+        <button type="button" id="btn-draft">임시저장만 하기</button>
+      </div>
+      <p class="small muted" style="margin-top:10px">
+        접수하면 접수번호와 조회코드가 발급되고 알림톡이 발송되며, 곧바로 서류를 올릴 수 있는 화면으로 이동합니다.
+        <br>임시저장은 동의 없이도 가능하며, <strong>접수할 때</strong> 필수 동의와 친구추가 확인이 필요합니다.
+      </p>
+    </form>
+  </section>
+</div>
+
+<script src="app.js"></script>
+<script>
+(function () {
+  const form = document.getElementById("form");
+  const code = Care.qs("code"), token = Care.qs("token");
+  const isEdit = !!(code && token);
+
+  Care.bindPhone(form.mother_phone);
+  Care.bindPhone(form.helper_phone);
+
+  // 이용예정기간 칩 (5·10·15·20·25일 이상, 기본 15일)
+  const DAY_OPTIONS = [5, 10, 15, 20, 25];
+  document.getElementById("days-chips").innerHTML = DAY_OPTIONS.map(function (d) {
+    return '<div class="chip' + (d === 15 ? " on" : "") + '" data-value="' + d + '">' +
+           d + (d === 25 ? "일 이상" : "일") + "</div>";
+  }).join("");
+
+  function bindChips(containerId, hiddenName) {
+    const box = document.getElementById(containerId);
+    box.addEventListener("click", function (ev) {
+      const chip = ev.target.closest(".chip");
+      if (!chip) return;
+      box.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("on"); });
+      chip.classList.add("on");
+      form[hiddenName].value = chip.dataset.value;
+    });
+  }
+  bindChips("relation-chips", "helper_relation");
+  bindChips("days-chips", "service_days");
+
+  // 산후조리원 이용 여부 — "이용함"일 때만 기간을 묻는다
+  var PERIODS = ["1주", "2주", "3주", "4주 이상", "미정"];
+  document.getElementById("period-chips").innerHTML = PERIODS.map(function (v) {
+    return '<div class="chip" data-value="' + v + '">' + v + "</div>";
+  }).join("");
+  // 인지경로 — "기타"를 고르면 자유 입력칸이 나타난다
+  Care.api("/api/info").then(function (info) {
+    document.getElementById("referral-chips").innerHTML = (info.referral_options || []).map(function (v) {
+      return '<div class="chip" data-value="' + Care.esc(v) + '">' + Care.esc(v) + "</div>";
+    }).join("");
+    bindChips("referral-chips", "referral");
+    document.getElementById("referral-chips").addEventListener("click", function () {
+      form.referral_detail.classList.toggle("hidden", form.referral.value !== "기타");
+      if (form.referral.value !== "기타") form.referral_detail.value = "";
+    });
+  });
+
+  bindChips("center-chips", "center_use");
+  bindChips("period-chips", "center_period");
+  document.getElementById("center-chips").addEventListener("click", function () {
+    var use = form.center_use.value === "이용함";
+    document.getElementById("center-period-field").classList.toggle("hidden", !use);
+    if (!use) {
+      form.center_period.value = "";
+      document.querySelectorAll("#period-chips .chip").forEach(function (c) { c.classList.remove("on"); });
+    }
+  });
+
+  // 출산예정일 — 월은 필수, 일자는 미정 가능
+  var daySel = form.due_day;
+  for (var d = 1; d <= 31; d++) {
+    var o = document.createElement("option");
+    o.value = String(d).padStart(2, "0");
+    o.textContent = d + "일";
+    daySel.appendChild(o);
+  }
+  function dueDate() {
+    var m = form.due_month.value;
+    if (!m) return "";
+    return form.due_day.value ? m + "-" + form.due_day.value : m;
+  }
+
+  function selectChip(containerId, value) {
+    document.getElementById(containerId).querySelectorAll(".chip").forEach(function (c) {
+      c.classList.toggle("on", c.dataset.value === String(value));
+    });
+  }
+
+  var CONSENTS = [];
+
+  function readConsents() {
+    var out = {};
+    CONSENTS.forEach(function (c) {
+      var el = document.getElementById("consent-" + c.key);
+      out[c.key] = !!(el && el.checked);
+    });
+    return out;
+  }
+
+  function syncAllBox() {
+    var boxes = CONSENTS.map(function (c) { return document.getElementById("consent-" + c.key); });
+    document.getElementById("agree-all").checked =
+      boxes.every(function (b) { return b && b.checked; }) &&
+      document.getElementById("kakao-friend").checked;
+  }
+
+  function renderConsents(list) {
+    CONSENTS = list;
+    document.getElementById("consent-boxes").innerHTML = list.map(function (c) {
+      return '<div class="agree"><div class="agree-row">' +
+        '<input type="checkbox" id="consent-' + c.key + '">' +
+        '<label class="t" for="consent-' + c.key + '">' +
+        (c.required ? '<span class="badge bad">필수</span> ' : '<span class="badge">선택</span> ') +
+        Care.esc(c.label) + "</label>" +
+        '<button type="button" class="more" data-more="' + c.key + '">자세히</button></div>' +
+        '<dl class="hidden" id="detail-' + c.key + '">' +
+        "<dt>수집 목적</dt><dd>" + Care.esc(c.purpose) + "</dd>" +
+        "<dt>수집 항목</dt><dd>" + Care.esc(c.items) + "</dd>" +
+        "<dt>보유 기간</dt><dd>" + Care.esc(c.period) + "</dd>" +
+        "<dt>안내</dt><dd>" + Care.esc(c.note) + "</dd></dl></div>";
+    }).join("");
+
+    document.querySelectorAll("[data-more]").forEach(function (btn) {
+      btn.onclick = function () {
+        var dl = document.getElementById("detail-" + btn.dataset.more);
+        var open = dl.classList.toggle("hidden");
+        btn.textContent = open ? "자세히" : "접기";
+      };
+    });
+    document.querySelectorAll('#consent-boxes input[type=checkbox]').forEach(function (b) {
+      b.addEventListener("change", syncAllBox);
+    });
+    document.getElementById("kakao-friend").addEventListener("change", syncAllBox);
+    document.getElementById("agree-all").addEventListener("change", function (ev) {
+      var on = ev.target.checked;
+      document.querySelectorAll('#consent-boxes input[type=checkbox]').forEach(function (b) { b.checked = on; });
+      document.getElementById("kakao-friend").checked = on;
+    });
+  }
+
+  Care.api("/api/info").then(function (info) {
+    renderConsents(info.consents || []);
+    var brand = info.brand || {};
+    if (brand.channel_name) document.getElementById("channel-name").textContent = brand.channel_name;
+    var link = document.getElementById("channel-link");
+    if (brand.channel_url) link.href = brand.channel_url;
+    else link.classList.add("hidden");
+  }).catch(function (e) { Care.toast(e.message, true); });
+
+  function payload(submit) {
+    return {
+      mother_name: form.mother_name.value.trim(),
+      mother_phone: form.mother_phone.value.trim(),
+      helper_name: form.helper_name.value.trim(),
+      helper_phone: form.helper_phone.value.trim(),
+      helper_relation: form.helper_relation.value,
+      relation_detail: form.relation_detail.value.trim(),
+      due_date: dueDate(),
+      service_days: Number(form.service_days.value) || 15,
+      voucher_code: form.voucher_code.value.trim(),
+      center_use: form.center_use.value,
+      center_period: form.center_period.value,
+      referral: form.referral.value,
+      referral_detail: form.referral_detail.value.trim(),
+      memo: form.memo.value.trim(),
+      consents: readConsents(),
+      kakao_friend: document.getElementById("kakao-friend").checked,
+      submit: !!submit
+    };
+  }
+
+  function goDetail(app) {
+    Care.remember(app);
+    location.href = "status.html?code=" + encodeURIComponent(app.code) +
+                    "&token=" + encodeURIComponent(app.token) + (app.status === "draft" ? "&saved=1" : "&new=1");
+  }
+
+  function send(submit) {
+    const buttons = [document.getElementById("btn-submit"), document.getElementById("btn-draft")];
+    buttons.forEach(function (b) { b.disabled = true; });
+
+    const done = function (app) {
+      if (isEdit) {
+        Care.toast("신청 정보를 수정했습니다.");
+        location.href = "status.html?code=" + encodeURIComponent(code) + "&token=" + encodeURIComponent(token);
+      } else {
+        goDetail(app);
+      }
+    };
+
+    const req = isEdit
+      ? Care.api("/api/applications/" + encodeURIComponent(code) + "?token=" + encodeURIComponent(token),
+                 { method: "PATCH", body: payload(false) })
+          .then(function (app) {
+            if (!submit) return app;
+            return Care.api("/api/applications/" + encodeURIComponent(code) + "/submit?token=" +
+                            encodeURIComponent(token), { method: "POST" });
+          })
+      : Care.api("/api/applications", { method: "POST", body: payload(submit) });
+
+    req.then(done).catch(function (e) { Care.toast(e.message, true); })
+       .finally(function () { buttons.forEach(function (b) { b.disabled = false; }); });
+  }
+
+  document.getElementById("btn-submit").onclick = function () { send(true); };
+  document.getElementById("btn-draft").onclick = function () { send(false); };
+
+  if (isEdit) {
+    document.getElementById("page-title").textContent = "신청 정보 수정";
+    document.getElementById("page-lead").textContent = "저장하면 변경 내용이 바로 반영됩니다.";
+    document.getElementById("btn-submit").textContent = "저장하고 접수하기";
+    document.getElementById("btn-draft").textContent = "저장만 하기";
+    Care.api("/api/applications/" + encodeURIComponent(code) + "?token=" + encodeURIComponent(token))
+      .then(function (a) {
+        form.mother_name.value = a.mother_name || "";
+        form.mother_phone.value = a.mother_phone || "";
+        form.helper_name.value = a.helper_name || "";
+        form.helper_phone.value = a.helper_phone || "";
+        form.relation_detail.value = a.relation_detail || "";
+        var due = (a.due_date || "").split("-");
+        form.due_month.value = due.length >= 2 ? due[0] + "-" + due[1] : "";
+        form.due_day.value = due.length === 3 ? due[2] : "";
+        form.voucher_code.value = a.voucher_code || "";
+        form.memo.value = a.memo || "";
+        form.helper_relation.value = a.helper_relation || "가족";
+        form.service_days.value = a.service_days || 15;
+        selectChip("relation-chips", a.helper_relation || "가족");
+        selectChip("days-chips", a.service_days || 15);
+        form.referral.value = a.referral || "";
+        form.referral_detail.value = a.referral_detail || "";
+        selectChip("referral-chips", a.referral || "");
+        form.referral_detail.classList.toggle("hidden", a.referral !== "기타");
+        form.center_use.value = a.center_use || "";
+        form.center_period.value = a.center_period || "";
+        selectChip("center-chips", a.center_use || "");
+        selectChip("period-chips", a.center_period || "");
+        document.getElementById("center-period-field")
+          .classList.toggle("hidden", a.center_use !== "이용함");
+        document.getElementById("kakao-friend").checked = !!a.kakao_friend;
+        Object.keys(a.consents || {}).forEach(function (k) {
+          var el = document.getElementById("consent-" + k);
+          if (el) el.checked = !!a.consents[k];
+        });
+        syncAllBox();
+        if (a.status !== "draft" && a.status !== "rejected") {
+          document.getElementById("btn-submit").classList.add("hidden");
+          document.getElementById("btn-draft").textContent = "수정 내용 저장";
+          document.getElementById("btn-draft").classList.add("primary");
+        }
+      })
+      .catch(function (e) { Care.toast(e.message, true); });
+  }
+})();
+</script>
+</body>
+</html>

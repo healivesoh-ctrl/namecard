@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>내 신청 조회 · 서류 제출 | 다이음 다이렉트</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A4%B1%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <a class="brand" href="./">다이음 <span>다이렉트</span></a>
+    <div class="spacer"></div>
+    <a class="nav" href="apply.html">새로 신청하기</a>
+  </div>
+
+  <!-- 조회 폼 (링크 없이 들어온 경우) -->
+  <section class="panel" id="lookup-panel">
+    <h1>내 신청 조회</h1>
+    <p class="lead">
+      <strong>신청서에 적으신 산모 이름, 산모 연락처, 산후도우미 이름</strong> 세 가지를 입력하시면
+      진행 상황을 확인하고 서류를 추가하실 수 있습니다. 접수번호는 없어도 됩니다.
+    </p>
+    <form id="lookup-form">
+      <label class="field"><span class="lbl">산모 이름<em>*</em></span>
+        <input name="mother_name" maxlength="40" placeholder="예: 김산모" autocomplete="off"></label>
+      <label class="field"><span class="lbl">산모 연락처<em>*</em></span>
+        <input name="phone" inputmode="numeric" maxlength="13" placeholder="010-0000-0000"></label>
+      <label class="field"><span class="lbl">산후도우미 이름<em>*</em></span>
+        <input name="helper_name" maxlength="40" placeholder="예: 이도우미" autocomplete="off">
+        <div class="help">가족 또는 지인 산후도우미로 신청서에 적으신 분의 이름입니다.</div></label>
+      <div class="btn-row"><button class="primary" type="submit">조회하기</button></div>
+    </form>
+    <div id="saved-list" class="doc-list" style="margin-top:16px"></div>
+  </section>
+
+  <!-- 상세 -->
+  <div id="detail" class="hidden">
+    <section class="panel">
+      <div class="doc-head" style="margin-bottom:6px">
+        <h1 style="font-size:20px">신청 진행 상황</h1>
+        <span class="badge" id="status-badge">-</span>
+      </div>
+      <p class="lead">접수번호 <span class="mono" id="code-text"></span> · 산모 <span id="mother-text"></span></p>
+
+      <div class="steps" id="steps"></div>
+      <div id="alert-box"></div>
+
+      <div class="btn-row" style="margin-top:6px">
+        <button class="primary hidden" id="btn-submit">접수하기</button>
+        <a class="btn" id="btn-edit" href="#">신청 정보 수정</a>
+        <button id="btn-refresh">새로고침</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>서류 제출</h2>
+      <p class="lead">준비된 서류부터 올려두세요. 접수하지 않은 채 저장만 해두었다가 나중에 접수해도 됩니다.</p>
+      <div class="doc-list" id="doc-list"></div>
+    </section>
+
+    <section class="panel">
+      <h2>신청 정보</h2>
+      <dl class="kv" id="info-kv"></dl>
+    </section>
+
+    <section class="panel">
+      <h2>진행 기록</h2>
+      <div class="timeline" id="timeline"></div>
+    </section>
+
+    <section class="panel">
+      <h2 style="font-size:15px">조회 정보 보관</h2>
+      <p class="small muted">아래 주소를 저장해두면 언제든 바로 열 수 있습니다. 다른 사람과 공유하지 마세요.</p>
+      <div class="code-box" style="font-size:12.5px; word-break:break-all; margin-top:8px" id="share-link"></div>
+      <div class="btn-row" style="margin-top:10px"><button class="small" id="btn-copy">주소 복사</button></div>
+    </section>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+(function () {
+  const E = Care.esc;
+  let code = Care.qs("code"), token = Care.qs("token"), current = null;
+  let DOC_TYPES = [];
+
+  const el = function (id) { return document.getElementById(id); };
+
+  function show(app) {
+    current = app;
+    Care.remember({ code: app.code, token: token, mother_name: app.mother_name });
+    el("lookup-panel").classList.add("hidden");
+    el("detail").classList.remove("hidden");
+
+    el("code-text").textContent = app.code;
+    el("mother-text").textContent = app.mother_name || "-";
+    const badge = el("status-badge");
+    badge.textContent = app.status_label;
+    badge.className = "badge " + Care.statusBadgeClass(app.status);
+
+    // 접수 → 검토 → 최종확인 단계 표시
+    const idx = Care.STEPS.findIndex(function (s) { return s.key === app.status; });
+    el("steps").innerHTML = Care.STEPS.map(function (s, i) {
+      let cls = "step";
+      if (app.status === "rejected") { cls += (i <= 1) ? " done" : ""; }
+      else if (i === idx) cls += " on";
+      else if (idx > -1 && i < idx) cls += " done";
+      return '<div class="' + cls + '">' + E(s.label) + "</div>";
+    }).join("");
+
+    renderAlert(app);
+    renderDocs(app);
+    renderInfo(app);
+    renderTimeline(app);
+
+    const link = location.origin + location.pathname + "?code=" + encodeURIComponent(app.code) +
+                 "&token=" + encodeURIComponent(token);
+    el("share-link").textContent = link;
+    el("btn-copy").onclick = function () {
+      navigator.clipboard.writeText(link).then(function () { Care.toast("주소를 복사했습니다."); },
+        function () { Care.toast("복사에 실패했습니다. 직접 선택해 복사해 주세요.", true); });
+    };
+    el("btn-edit").href = "apply.html?code=" + encodeURIComponent(app.code) + "&token=" + encodeURIComponent(token);
+    el("btn-edit").classList.toggle("hidden", app.status === "confirmed");
+
+    const submitBtn = el("btn-submit");
+    const canSubmit = app.status === "draft" || app.status === "rejected";
+    submitBtn.classList.toggle("hidden", !canSubmit);
+    submitBtn.textContent = app.status === "rejected" ? "보완서류 다시 제출하기" : "접수하기 (자동 승인)";
+  }
+
+  function renderAlert(app) {
+    const box = el("alert-box");
+    let html = "";
+    if (Care.qs("new")) html += '<div class="notice ok"><strong>접수가 완료되었습니다.</strong>' +
+      '접수는 자동 승인되었습니다. 아래에서 서류를 올려주세요. 서류는 나눠서 올려도 됩니다.</div>';
+    else if (Care.qs("saved")) html += '<div class="notice info"><strong>임시저장되었습니다.</strong>' +
+      '서류를 먼저 올려두고, 준비가 끝나면 <strong>접수하기</strong>를 눌러주세요.</div>';
+
+    if (app.status === "rejected") {
+      const list = app.missing_doc_labels && app.missing_doc_labels.length
+        ? "<br>부족한 서류: <strong>" + app.missing_doc_labels.map(E).join(", ") + "</strong>" : "";
+      html += '<div class="notice bad"><strong>보완이 필요합니다 (반려)</strong>' +
+        E(app.admin_message || "다이음 관리자가 서류 보완을 요청했습니다.") + list +
+        "<br>부족한 서류만 추가로 올린 뒤 <strong>보완서류 다시 제출하기</strong>를 눌러주세요.</div>";
+    } else if (app.status === "confirmed") {
+      html += '<div class="notice ok"><strong>최종확인이 완료되었습니다.</strong>' +
+        E(app.admin_message || "다이음 관리자가 모든 서류를 확인했습니다.") + "</div>";
+    } else if (app.status === "reviewing") {
+      html += '<div class="notice warn"><strong>다이음 관리자가 서류를 검토하고 있습니다.</strong>' +
+        E(app.admin_message || "결과가 나오면 이 화면에서 확인하실 수 있습니다.") + "</div>";
+    } else if (app.status === "draft") {
+      html += '<div class="notice warn"><strong>아직 접수되지 않았습니다.</strong>' +
+        "서류만 저장된 상태입니다. 준비가 끝나면 <strong>접수하기</strong>를 눌러주세요.</div>";
+    }
+
+    if (app.status !== "confirmed" && app.missing_now && app.missing_now.length) {
+      html += '<div class="notice info"><strong>아직 올리지 않은 서류</strong>' +
+        app.missing_now.map(E).join(", ") + "</div>";
+    }
+    box.innerHTML = html;
+  }
+
+  function renderDocs(app) {
+    const locked = app.status === "confirmed";
+    const byType = {};
+    (app.documents || []).forEach(function (d) { (byType[d.doc_type] = byType[d.doc_type] || []).push(d); });
+
+    el("doc-list").innerHTML = DOC_TYPES.map(function (t) {
+      const files = byType[t.key] || [];
+      const needed = app.missing_docs && app.missing_docs.indexOf(t.key) > -1;
+      let head = '<div class="doc-head"><span class="t">' + E(t.label) + "</span>";
+      if (files.length) {
+        const rejected = files.filter(function (f) { return f.status === "rejected"; }).length;
+        const accepted = files.filter(function (f) { return f.status === "accepted"; }).length;
+        head += accepted ? '<span class="badge ok">확인완료</span>'
+              : rejected ? '<span class="badge bad">반려됨</span>'
+              : '<span class="badge info">제출됨</span>';
+      } else {
+        head += '<span class="badge warn">미제출</span>';
+      }
+      if (needed) head += '<span class="badge bad">보완요청</span>';
+      head += "</div>";
+
+      const rows = files.map(function (f) {
+        const badge = f.status === "accepted" ? '<span class="badge ok">확인</span>'
+                    : f.status === "rejected" ? '<span class="badge bad">반려</span>'
+                    : '<span class="badge">검토대기</span>';
+        return '<div class="file-row">' + badge +
+          '<span class="name">' + E(f.filename) + ' <span class="muted small">(' + Care.fileSize(f.size) + ")</span>" +
+          (f.reject_reason ? '<div class="small" style="color:var(--red)">' + E(f.reject_reason) + "</div>" : "") +
+          "</span>" +
+          '<a class="btn small" target="_blank" rel="noopener" href="/api/applications/' +
+          encodeURIComponent(app.code) + "/documents/" + f.id + "/file?token=" + encodeURIComponent(token) + '">보기</a>' +
+          (locked ? "" : '<button class="small danger" data-del="' + f.id + '">삭제</button>') +
+          "</div>";
+      }).join("");
+
+      const uploader = locked ? "" :
+        '<div class="file-row"><input type="file" data-type="' + t.key +
+        '" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif"></div>';
+
+      return '<div class="doc-item">' + head + '<div class="doc-desc">' + E(t.desc) + "</div>" +
+             rows + uploader + "</div>";
+    }).join("");
+
+    el("doc-list").querySelectorAll('input[type=file]').forEach(function (input) {
+      input.addEventListener("change", function () {
+        if (!input.files || !input.files[0]) return;
+        upload(input.dataset.type, input.files[0], input);
+      });
+    });
+    el("doc-list").querySelectorAll("button[data-del]").forEach(function (btn) {
+      btn.onclick = function () {
+        if (!confirm("이 서류를 삭제할까요?")) return;
+        btn.disabled = true;
+        Care.api("/api/applications/" + encodeURIComponent(current.code) + "/documents/" + btn.dataset.del +
+                 "?token=" + encodeURIComponent(token), { method: "DELETE" })
+          .then(function (app) { Care.toast("삭제했습니다."); show(app); })
+          .catch(function (e) { Care.toast(e.message, true); btn.disabled = false; });
+      };
+    });
+  }
+
+  function upload(docType, file, input) {
+    const fd = new FormData();
+    fd.append("doc_type", docType);
+    fd.append("file", file);
+    input.disabled = true;
+    Care.toast("업로드 중…");
+    Care.api("/api/applications/" + encodeURIComponent(current.code) + "/documents?token=" + encodeURIComponent(token),
+             { method: "POST", body: fd })
+      .then(function (app) { Care.toast("서류를 올렸습니다."); show(app); })
+      .catch(function (e) { Care.toast(e.message, true); input.disabled = false; input.value = ""; });
+  }
+
+  // 일자가 미정이면 "2026년 10월 (일자 미정)" 으로 보여준다
+  function fmtDue(v) {
+    var p = (v || "").split("-");
+    if (p.length === 3) return p[0] + "년 " + Number(p[1]) + "월 " + Number(p[2]) + "일";
+    if (p.length === 2) return p[0] + "년 " + Number(p[1]) + "월 (일자 미정)";
+    return v || "";
+  }
+
+  function renderInfo(app) {
+    const rel = app.helper_relation + (app.relation_detail ? " (" + app.relation_detail + ")" : "");
+    const rows = [
+      ["산모 이름", app.mother_name], ["산모 연락처", app.mother_phone],
+      ["산후도우미", app.helper_name], ["도우미 연락처", app.helper_phone],
+      ["관계", rel], ["출산예정일", fmtDue(app.due_date)],
+      ["이용예정기간", app.service_days ? app.service_days + (app.service_days >= 25 ? "일 이상" : "일") : ""],
+      ["산후조리원", app.center_use ? app.center_use + (app.center_period ? " · " + app.center_period : "") : ""],
+      ["바우처 구분코드", app.voucher_code || "미입력 (나중에 추가 가능)"],
+      ["알게 된 경로", app.referral ? app.referral + (app.referral_detail ? " (" + app.referral_detail + ")" : "") : ""],
+      ["남긴 말씀", app.memo], ["접수일시", app.submitted_at ? Care.fmtDate(app.submitted_at) : "미접수"]
+    ];
+    el("info-kv").innerHTML = rows.map(function (r) {
+      return "<dt>" + E(r[0]) + "</dt><dd>" + E(r[1] || "-") + "</dd>";
+    }).join("");
+  }
+
+  function renderTimeline(app) {
+    const evs = (app.events || []).slice().reverse();
+    el("timeline").innerHTML = evs.length ? evs.map(function (e) {
+      return '<div class="ev">' + E(e.message) +
+             '<div class="meta">' + Care.fmtDate(e.created_at) + " · " + E(e.actor) + "</div></div>";
+    }).join("") : '<p class="muted small">기록이 없습니다.</p>';
+  }
+
+  function load() {
+    return Care.api("/api/applications/" + encodeURIComponent(code) + "?token=" + encodeURIComponent(token))
+      .then(show)
+      .catch(function (e) {
+        Care.toast(e.message, true);
+        el("detail").classList.add("hidden");
+        el("lookup-panel").classList.remove("hidden");
+      });
+  }
+
+  el("btn-refresh").onclick = function () {
+    history.replaceState(null, "", "?code=" + encodeURIComponent(code) + "&token=" + encodeURIComponent(token));
+    load().then(function () { Care.toast("최신 상태를 불러왔습니다."); });
+  };
+
+  el("btn-submit").onclick = function () {
+    const btn = el("btn-submit");
+    btn.disabled = true;
+    Care.api("/api/applications/" + encodeURIComponent(code) + "/submit?token=" + encodeURIComponent(token),
+             { method: "POST" })
+      .then(function (app) {
+        history.replaceState(null, "", "?code=" + encodeURIComponent(code) + "&token=" + encodeURIComponent(token) + "&new=1");
+        Care.toast("접수가 완료되었습니다.");
+        show(app);
+      })
+      .catch(function (e) { Care.toast(e.message, true); })
+      .finally(function () { btn.disabled = false; });
+  };
+
+  // 조회 폼
+  const lookupForm = document.getElementById("lookup-form");
+  Care.bindPhone(lookupForm.phone);
+  lookupForm.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    Care.api("/api/applications/lookup", {
+      method: "POST",
+      body: {
+        mother_name: lookupForm.mother_name.value.trim(),
+        phone: lookupForm.phone.value.trim(),
+        helper_name: lookupForm.helper_name.value.trim()
+      }
+    }).then(function (app) {
+      code = app.code; token = app.token;
+      history.replaceState(null, "", "?code=" + encodeURIComponent(code) + "&token=" + encodeURIComponent(token));
+      show(app);
+    }).catch(function (e) { Care.toast(e.message, true); });
+  });
+
+  // 이 기기에 저장된 접수 건 바로가기
+  const saved = Care.readStore();
+  if (saved.length) {
+    el("saved-list").innerHTML = '<p class="small muted">이 기기에 저장된 접수 건</p>' + saved.map(function (x) {
+      return '<div class="doc-item"><div class="doc-head"><span class="t mono">' + E(x.code) + "</span>" +
+             (x.mother_name ? '<span class="badge">' + E(x.mother_name) + "</span>" : "") + "</div>" +
+             '<div class="doc-desc"><a href="?code=' + encodeURIComponent(x.code) + "&token=" +
+             encodeURIComponent(x.token) + '">바로 열기 →</a></div></div>';
+    }).join("");
+  }
+
+  Care.api("/api/info").then(function (info) {
+    DOC_TYPES = info.documents || [];
+    if (code && token) load();
+  }).catch(function (e) { Care.toast(e.message, true); });
+})();
+</script>
+</body>
+</html>

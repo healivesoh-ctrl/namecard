@@ -1,0 +1,7 @@
+fastapi>=0.111
+uvicorn>=0.30
+python-multipart>=0.0.9
+pydantic>=2.0
+# 구글 시트·드라이브 백업 (연동을 안 쓰면 설치만 되고 호출되지 않는다)
+google-auth>=2.28
+requests>=2.31

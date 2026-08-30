@@ -22,3 +22,38 @@ services:
         sync: false
       - key: IG_USER_ID          # 인스타그램 업로드 (선택)
         sync: false
+
+  # 친정엄마 산모신생아건강관리사 신청 시스템
+  - type: web
+    name: chinjeong-care
+    runtime: docker
+    plan: free
+    dockerfilePath: ./care/Dockerfile
+    dockerContext: ./care
+    envVars:
+      - key: ADMIN_PASSWORD   # 관리자 화면(/admin.html) 비밀번호 (필수)
+        sync: false
+      # free 플랜에는 영구 디스크가 없어 재시작 시 데이터가 사라진다.
+      # 유료 플랜에서 디스크를 /data 에 마운트하면 그대로 유지된다(Dockerfile 기본값 DATA_DIR=/data).
+      - key: DATA_DIR
+        value: /data
+      # 구글 시트·드라이브 백업 (선택) — 켜두면 free 플랜에서 서버가 초기화돼도
+      # 접수 내용은 시트에, 서류 원본은 드라이브에 남는다. care/README.md 참고.
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON   # 서비스 계정 키 JSON 전체
+        sync: false
+      - key: GSHEET_ID                     # 스프레드시트 ID
+        sync: false
+      - key: GDRIVE_FOLDER_ID              # 서류 저장용 드라이브 폴더 ID
+        sync: false
+      # 카카오 알림톡 (선택) — 미설정 시 dryrun: 발송하지 않고 문구만 기록한다.
+      # 실제 발송에는 카카오 비즈메시지 발신프로필과 템플릿 심사 승인이 필요하다.
+      - key: ALIMTALK_MODE                 # dryrun | webhook
+        value: dryrun
+      - key: ALIMTALK_WEBHOOK_URL          # 발송 중계 주소
+        sync: false
+      - key: ALIMTALK_WEBHOOK_SECRET
+        sync: false
+      - key: ALIMTALK_TEMPLATE_IDS         # 예: {"received":"TPL_01"}
+        sync: false
+      - key: PUBLIC_BASE_URL               # 알림톡 '진행상황 확인' 버튼이 열 주소
+        sync: false
