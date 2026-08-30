@@ -43,6 +43,8 @@ FORM = {
     "due_date": "2026-10-15",
     "service_days": 20,
     "health_center_code": "",
+    "consents": {"privacy": True, "sensitive": True, "kakao": True, "marketing": False},
+    "kakao_friend": True,
 }
 
 

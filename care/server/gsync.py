@@ -291,7 +291,9 @@ _HANDLERS = {
 
 def _worker() -> None:
     while True:
-        kind, arg = _QUEUE.get()
+        # get 과 task_done 은 반드시 같은 큐 객체여야 한다 (notify._worker 와 동일).
+        q = _QUEUE
+        kind, arg = q.get()
         try:
             if enabled():
                 _run_with_retry(kind, arg)
@@ -300,7 +302,7 @@ def _worker() -> None:
             _STATE["last_error"] = f"[{db.now()}] {traceback.format_exc(limit=2).strip()[-300:]}"
             print(f"[gsync] {kind} 동기화 실패: {_STATE['last_error']}", flush=True)
         finally:
-            _QUEUE.task_done()
+            q.task_done()
 
 
 def _run_with_retry(kind: str, arg, attempts: int = 3) -> None:

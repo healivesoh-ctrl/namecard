@@ -45,3 +45,13 @@ services:
         sync: false
       - key: GDRIVE_FOLDER_ID              # 서류 저장용 드라이브 폴더 ID
         sync: false
+      # 카카오 알림톡 (선택) — 미설정 시 dryrun: 발송하지 않고 문구만 기록한다.
+      # 실제 발송에는 카카오 비즈메시지 발신프로필과 템플릿 심사 승인이 필요하다.
+      - key: ALIMTALK_MODE                 # dryrun | webhook
+        value: dryrun
+      - key: ALIMTALK_WEBHOOK_URL          # 발송 중계 주소
+        sync: false
+      - key: ALIMTALK_WEBHOOK_SECRET
+        sync: false
+      - key: ALIMTALK_TEMPLATE_IDS         # 예: {"received":"TPL_01"}
+        sync: false

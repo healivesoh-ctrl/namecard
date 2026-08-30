@@ -66,6 +66,60 @@ STATUS_ORDER = ["draft", "received", "reviewing", "confirmed"]
 SERVICE_DAY_OPTIONS = [5, 10, 15, 20, 25]
 DEFAULT_SERVICE_DAYS = 15
 
+# 개인정보 동의 항목. version 은 문구가 바뀔 때 올린다 — 어떤 버전에 동의했는지 남겨야
+# 나중에 "무엇에 동의했는가"를 증명할 수 있다. 실제 오픈 전 법률 검토 필요.
+CONSENT_VERSION = "2026-08-30"
+CONSENTS: list[dict] = [
+    {
+        "key": "privacy",
+        "required": True,
+        "label": "개인정보 수집·이용 동의",
+        "purpose": "산모신생아건강관리 서비스 신청 접수, 자격 확인, 상담 및 안내",
+        "items": "산모 이름·연락처, 산후도우미 이름·연락처, 산모와의 관계, 출산예정일, 이용예정기간, 보건소 지정 이용코드",
+        "period": "서비스 종료 후 3년 (관계 법령에 따른 보존기간이 더 길면 그 기간)",
+        "note": "동의를 거부하실 수 있으나, 거부 시 신청 접수가 불가능합니다.",
+    },
+    {
+        "key": "sensitive",
+        "required": True,
+        "label": "민감정보(건강정보) 처리 동의",
+        "purpose": "산모신생아건강관리사 자격 요건 확인",
+        "items": "건강검진결과서(결핵 검사 포함), 백일해 예방접종 증명서류, 교육 수료증",
+        "period": "서비스 종료 후 3년",
+        "note": "건강에 관한 정보는 민감정보로 별도 동의가 필요합니다. 거부 시 서류 검토가 불가능합니다.",
+    },
+    {
+        "key": "kakao",
+        "required": True,
+        "label": "카카오 알림톡 수신 및 채널 친구추가 동의",
+        "purpose": "접수·검토·보완요청·최종확인 등 진행 상황 안내",
+        "items": "휴대전화번호",
+        "period": "서비스 종료 시까지",
+        "note": "본 서비스의 모든 안내는 카카오 알림톡으로 발송되므로, 채널 친구추가와 유지가 필요합니다.",
+    },
+    {
+        "key": "marketing",
+        "required": False,
+        "label": "이벤트·혜택 안내 수신 동의 (선택)",
+        "purpose": "월별 이벤트, 급여 변동, 신규 서비스 안내",
+        "items": "휴대전화번호",
+        "period": "동의 철회 시까지",
+        "note": "동의하지 않으셔도 신청과 서비스 이용에는 영향이 없습니다.",
+    },
+]
+CONSENT_KEYS = [c["key"] for c in CONSENTS]
+REQUIRED_CONSENTS = [c["key"] for c in CONSENTS if c["required"]]
+
+# 메인 화면 브랜드·카카오 채널 설정 (관리자가 수정)
+DEFAULT_BRAND = {
+    "service_name": "다이음 다이렉트",
+    "tagline": "직접 신청해서, 친정엄마 급여를 가장 높게",
+    "channel_name": "다이음",
+    "channel_url": "",
+    "event_notice": "카카오채널 친구추가를 하지 않거나 친구를 삭제하시면 이벤트 혜택이 적용되지 않습니다.",
+    "updated_at": "",
+}
+
 DEFAULT_PAY = {
     "effective_month": "",
     "hourly_wage": 0,
@@ -95,6 +149,12 @@ CREATE TABLE IF NOT EXISTS applications (
     service_days       INTEGER NOT NULL DEFAULT 15,
     health_center_code TEXT NOT NULL DEFAULT '',
     memo               TEXT NOT NULL DEFAULT '',
+    consents           TEXT NOT NULL DEFAULT '{}',
+    consent_at         TEXT NOT NULL DEFAULT '',
+    consent_version    TEXT NOT NULL DEFAULT '',
+    kakao_friend       INTEGER NOT NULL DEFAULT 0,
+    kakao_verified     TEXT NOT NULL DEFAULT '',
+    event_applied      INTEGER NOT NULL DEFAULT 0,
     status             TEXT NOT NULL DEFAULT 'draft',
     admin_message      TEXT NOT NULL DEFAULT '',
     missing_docs       TEXT NOT NULL DEFAULT '[]',
@@ -130,6 +190,20 @@ CREATE TABLE IF NOT EXISTS events (
     created_at     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_event_app ON events(application_id);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
+    template_key   TEXT NOT NULL,
+    phone          TEXT NOT NULL DEFAULT '',
+    title          TEXT NOT NULL DEFAULT '',
+    body           TEXT NOT NULL DEFAULT '',
+    status         TEXT NOT NULL DEFAULT 'queued',
+    detail         TEXT NOT NULL DEFAULT '',
+    created_at     TEXT NOT NULL,
+    sent_at        TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_noti_app ON notifications(application_id);
 
 CREATE TABLE IF NOT EXISTS consultations (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -172,6 +246,12 @@ def db():
 # 이미 만들어진 DB에 나중에 추가된 컬럼 — 있으면 넘어간다.
 ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("documents", "drive_url", "TEXT NOT NULL DEFAULT ''"),
+    ("applications", "consents", "TEXT NOT NULL DEFAULT '{}'"),
+    ("applications", "consent_at", "TEXT NOT NULL DEFAULT ''"),
+    ("applications", "consent_version", "TEXT NOT NULL DEFAULT ''"),
+    ("applications", "kakao_friend", "INTEGER NOT NULL DEFAULT 0"),
+    ("applications", "kakao_verified", "TEXT NOT NULL DEFAULT ''"),
+    ("applications", "event_applied", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 
@@ -186,11 +266,12 @@ def init() -> None:
     with db() as conn:
         conn.executescript(SCHEMA)
         _migrate(conn)
-        if conn.execute("SELECT 1 FROM settings WHERE key='pay'").fetchone() is None:
-            conn.execute(
-                "INSERT INTO settings(key, value) VALUES('pay', ?)",
-                (json.dumps(DEFAULT_PAY, ensure_ascii=False),),
-            )
+        for key, default in (("pay", DEFAULT_PAY), ("brand", DEFAULT_BRAND)):
+            if conn.execute("SELECT 1 FROM settings WHERE key=?", (key,)).fetchone() is None:
+                conn.execute(
+                    "INSERT INTO settings(key, value) VALUES(?, ?)",
+                    (key, json.dumps(default, ensure_ascii=False)),
+                )
 
 
 def get_setting(conn: sqlite3.Connection, key: str, default):

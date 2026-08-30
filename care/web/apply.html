@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>신청서 작성 | 친정엄마 산모신생아건강관리사</title>
+<title>신청서 작성 | 다이음 다이렉트</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A4%B1%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="app.css">
 </head>
@@ -11,7 +11,7 @@
 <div class="wrap">
 
   <div class="topbar">
-    <a class="brand" href="./">다이음 <span>친정엄마</span></a>
+    <a class="brand" href="./">다이음 <span>다이렉트</span></a>
     <div class="spacer"></div>
     <a class="nav" href="status.html">내 신청 조회</a>
   </div>
@@ -69,12 +69,42 @@
       <label class="field"><span class="lbl">추가로 남길 말씀</span>
         <textarea name="memo" maxlength="1000" placeholder="문의사항이나 참고할 내용이 있으면 적어주세요 (선택)"></textarea></label>
 
+      <!-- 카카오채널 친구추가 (접수 필수) -->
+      <div class="panel kakao-panel" style="margin:22px 0 16px; box-shadow:none">
+        <h2><span id="channel-name">다이음</span> 카카오채널 친구추가 <span class="badge bad">필수</span></h2>
+        <p class="lead">접수번호, 보완요청, 최종확인 등 <strong>모든 안내가 알림톡으로 발송</strong>됩니다.
+           친구추가를 하지 않거나 삭제하시면 안내를 받으실 수 없고, <strong>이벤트 혜택도 적용되지 않습니다.</strong></p>
+        <div class="btn-row" style="margin-bottom:12px">
+          <a class="btn primary" id="channel-link" href="#" target="_blank" rel="noopener">채널 친구추가하러 가기</a>
+        </div>
+        <div class="agree">
+          <div class="agree-row">
+            <input type="checkbox" id="kakao-friend">
+            <label class="t" for="kakao-friend">카카오채널 친구추가를 완료했고, 이용 기간 동안 유지하겠습니다.</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 개인정보 동의 -->
+      <div style="margin-bottom:18px">
+        <h2 style="font-size:15px; font-weight:700; margin-bottom:4px">개인정보 수집·이용 동의</h2>
+        <p class="help" style="margin-bottom:10px">각 항목의 <strong>자세히</strong>를 눌러 수집 목적과 보유기간을 확인하실 수 있습니다.</p>
+        <div class="agree all">
+          <div class="agree-row">
+            <input type="checkbox" id="agree-all">
+            <label class="t" for="agree-all">아래 항목에 모두 동의합니다 (선택 항목 포함)</label>
+          </div>
+        </div>
+        <div id="consent-boxes" style="margin-top:9px"></div>
+      </div>
+
       <div class="btn-row">
         <button class="primary" type="button" id="btn-submit">접수하기 (자동 승인)</button>
         <button type="button" id="btn-draft">임시저장만 하기</button>
       </div>
       <p class="small muted" style="margin-top:10px">
-        접수하면 접수번호와 조회코드가 발급되고, 곧바로 서류를 올릴 수 있는 화면으로 이동합니다.
+        접수하면 접수번호와 조회코드가 발급되고 알림톡이 발송되며, 곧바로 서류를 올릴 수 있는 화면으로 이동합니다.
+        <br>임시저장은 동의 없이도 가능하며, <strong>접수할 때</strong> 필수 동의와 친구추가 확인이 필요합니다.
       </p>
     </form>
   </section>
@@ -116,6 +146,67 @@
     });
   }
 
+  var CONSENTS = [];
+
+  function readConsents() {
+    var out = {};
+    CONSENTS.forEach(function (c) {
+      var el = document.getElementById("consent-" + c.key);
+      out[c.key] = !!(el && el.checked);
+    });
+    return out;
+  }
+
+  function syncAllBox() {
+    var boxes = CONSENTS.map(function (c) { return document.getElementById("consent-" + c.key); });
+    document.getElementById("agree-all").checked =
+      boxes.every(function (b) { return b && b.checked; }) &&
+      document.getElementById("kakao-friend").checked;
+  }
+
+  function renderConsents(list) {
+    CONSENTS = list;
+    document.getElementById("consent-boxes").innerHTML = list.map(function (c) {
+      return '<div class="agree"><div class="agree-row">' +
+        '<input type="checkbox" id="consent-' + c.key + '">' +
+        '<label class="t" for="consent-' + c.key + '">' +
+        (c.required ? '<span class="badge bad">필수</span> ' : '<span class="badge">선택</span> ') +
+        Care.esc(c.label) + "</label>" +
+        '<button type="button" class="more" data-more="' + c.key + '">자세히</button></div>' +
+        '<dl class="hidden" id="detail-' + c.key + '">' +
+        "<dt>수집 목적</dt><dd>" + Care.esc(c.purpose) + "</dd>" +
+        "<dt>수집 항목</dt><dd>" + Care.esc(c.items) + "</dd>" +
+        "<dt>보유 기간</dt><dd>" + Care.esc(c.period) + "</dd>" +
+        "<dt>안내</dt><dd>" + Care.esc(c.note) + "</dd></dl></div>";
+    }).join("");
+
+    document.querySelectorAll("[data-more]").forEach(function (btn) {
+      btn.onclick = function () {
+        var dl = document.getElementById("detail-" + btn.dataset.more);
+        var open = dl.classList.toggle("hidden");
+        btn.textContent = open ? "자세히" : "접기";
+      };
+    });
+    document.querySelectorAll('#consent-boxes input[type=checkbox]').forEach(function (b) {
+      b.addEventListener("change", syncAllBox);
+    });
+    document.getElementById("kakao-friend").addEventListener("change", syncAllBox);
+    document.getElementById("agree-all").addEventListener("change", function (ev) {
+      var on = ev.target.checked;
+      document.querySelectorAll('#consent-boxes input[type=checkbox]').forEach(function (b) { b.checked = on; });
+      document.getElementById("kakao-friend").checked = on;
+    });
+  }
+
+  Care.api("/api/info").then(function (info) {
+    renderConsents(info.consents || []);
+    var brand = info.brand || {};
+    if (brand.channel_name) document.getElementById("channel-name").textContent = brand.channel_name;
+    var link = document.getElementById("channel-link");
+    if (brand.channel_url) link.href = brand.channel_url;
+    else link.classList.add("hidden");
+  }).catch(function (e) { Care.toast(e.message, true); });
+
   function payload(submit) {
     return {
       mother_name: form.mother_name.value.trim(),
@@ -128,6 +219,8 @@
       service_days: Number(form.service_days.value) || 15,
       health_center_code: form.health_center_code.value.trim(),
       memo: form.memo.value.trim(),
+      consents: readConsents(),
+      kakao_friend: document.getElementById("kakao-friend").checked,
       submit: !!submit
     };
   }
@@ -187,6 +280,12 @@
         form.service_days.value = a.service_days || 15;
         selectChip("relation-chips", a.helper_relation || "가족");
         selectChip("days-chips", a.service_days || 15);
+        document.getElementById("kakao-friend").checked = !!a.kakao_friend;
+        Object.keys(a.consents || {}).forEach(function (k) {
+          var el = document.getElementById("consent-" + k);
+          if (el) el.checked = !!a.consents[k];
+        });
+        syncAllBox();
         if (a.status !== "draft" && a.status !== "rejected") {
           document.getElementById("btn-submit").classList.add("hidden");
           document.getElementById("btn-draft").textContent = "수정 내용 저장";

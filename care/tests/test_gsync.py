@@ -23,6 +23,8 @@ FORM = {
     "helper_name": "이도우미", "helper_phone": "01098765432",
     "helper_relation": "가족", "relation_detail": "친정어머니",
     "due_date": "2026-10-15", "service_days": 15, "health_center_code": "",
+    "consents": {"privacy": True, "sensitive": True, "kakao": True, "marketing": False},
+    "kakao_friend": True,
 }
 PDF = b"%PDF-1.4\ntest\n%%EOF"
 

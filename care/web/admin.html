@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>다이음 관리자 | 친정엄마 신청 관리</title>
+<title>다이음 다이렉트 관리자</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A4%B1%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="app.css">
@@ -12,7 +12,7 @@
 <div class="wrap wide">
 
   <div class="topbar">
-    <a class="brand" href="./">다이음 <span>관리자</span></a>
+    <a class="brand" href="./">다이음 다이렉트 <span>관리자</span></a>
     <div class="spacer"></div>
     <button class="small hidden" id="btn-logout">잠그기</button>
   </div>
@@ -32,7 +32,8 @@
     <div class="btn-row" style="margin-bottom:14px">
       <button class="primary" data-tab="apps">신청 관리</button>
       <button data-tab="consults">전화상담</button>
-      <button data-tab="pay">친정엄마 소득 설정</button>
+      <button data-tab="pay">메인 화면 설정</button>
+      <button data-tab="noti">알림톡</button>
       <button data-tab="sync">구글 시트 연동</button>
     </div>
 
@@ -75,6 +76,9 @@
         <h3 style="margin:18px 0 8px">제출 서류</h3>
         <div class="doc-list" id="d-docs"></div>
 
+        <h3 style="margin:18px 0 8px">카카오채널 · 이벤트</h3>
+        <div id="d-kakao"></div>
+
         <h3 style="margin:18px 0 8px">단계 변경 · 반려</h3>
         <div class="notice info small">
           반려하면 신청자 화면에 부족한 서류와 사유가 표시되고, 부족한 서류만 다시 올려 재제출할 수 있습니다.
@@ -87,6 +91,9 @@
           <button class="danger" id="btn-reject">부족 서류 반려</button>
           <button class="primary" id="btn-confirm">최종확인 완료</button>
         </div>
+
+        <h3 style="margin:18px 0 8px">이 건에 발송된 알림톡</h3>
+        <div class="doc-list" id="d-noti"></div>
 
         <h3 style="margin:18px 0 8px">진행 기록</h3>
         <div class="timeline" id="d-timeline"></div>
@@ -110,6 +117,25 @@
     <!-- 급여 설정 -->
     <section id="tab-pay" class="hidden">
       <section class="panel">
+        <h2>서비스명 · 카카오채널</h2>
+        <p class="lead">메인 화면과 신청서에 그대로 노출됩니다. 채널 주소를 넣어야 친구추가 버튼이 연결됩니다.</p>
+        <div class="two-col">
+          <label class="field"><span class="lbl">서비스명</span>
+            <input id="b-name" maxlength="60" placeholder="다이음 다이렉트"></label>
+          <label class="field"><span class="lbl">카카오채널 이름</span>
+            <input id="b-channel-name" maxlength="40" placeholder="다이음"></label>
+        </div>
+        <label class="field"><span class="lbl">홍보 문구 (한 줄)</span>
+          <input id="b-tagline" maxlength="120" placeholder="직접 신청해서, 친정엄마 급여를 가장 높게"></label>
+        <label class="field"><span class="lbl">카카오채널 주소</span>
+          <input id="b-channel-url" maxlength="300" placeholder="https://pf.kakao.com/_xxxxx">
+          <div class="help">카카오톡 채널 관리자센터에서 확인한 채널 홈 주소를 넣으세요.</div></label>
+        <label class="field"><span class="lbl">이벤트 조건 안내 문구</span>
+          <textarea id="b-event" maxlength="400"></textarea></label>
+        <div class="btn-row"><button class="primary" id="b-save">서비스 정보 저장</button></div>
+      </section>
+
+      <section class="panel">
         <h2>친정엄마 소득 안내 (메인 화면 노출)</h2>
         <p class="lead">최저시급 기준이나 매달 이벤트에 따라 금액이 바뀌면 여기서 수정하세요. 저장 즉시 메인 화면에 반영됩니다.</p>
         <div class="two-col">
@@ -132,6 +158,33 @@
         <div class="btn-row" style="margin-top:16px">
           <button class="primary" id="p-save">저장하고 메인에 반영</button>
         </div>
+      </section>
+    </section>
+
+    <!-- 알림톡 -->
+    <section id="tab-noti" class="hidden">
+      <section class="panel">
+        <h2>알림톡 발송 상태</h2>
+        <p class="lead">진행 단계가 바뀔 때마다 신청자에게 자동으로 발송됩니다.</p>
+        <div id="noti-state"></div>
+        <div class="btn-row" style="margin-top:12px"><button id="noti-refresh">새로고침</button></div>
+      </section>
+
+      <section class="panel">
+        <h2>발송 이력</h2>
+        <div class="scroll-x">
+          <table class="list">
+            <thead><tr><th>시각</th><th>접수번호</th><th>종류</th><th>받는 번호</th><th>상태</th><th>내용</th><th></th></tr></thead>
+            <tbody id="noti-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>템플릿 문구 (카카오 심사용)</h2>
+        <p class="lead">알림톡은 카카오 비즈메시지에 <strong>템플릿을 미리 등록해 심사 승인</strong>을 받아야 발송됩니다.
+           아래 문구를 그대로 등록하고, 발급받은 템플릿 ID를 서버 환경변수에 넣으면 실제 발송이 시작됩니다.</p>
+        <div class="doc-list" id="noti-templates"></div>
       </section>
     </section>
 
@@ -191,18 +244,30 @@
     el("btn-logout").classList.remove("hidden");
     Care.api("/api/info").then(function (info) { DOC_TYPES = info.documents || []; loadList(); });
     loadPay();
+    loadBrand();
     loadConsults();
+    loadNoti();
     loadSync();
   }
 
   // ── 탭 ──
+  const TAB_LOADERS = {
+    apps: function () { loadList(); },
+    consults: function () { loadConsults(); },
+    pay: function () { loadPay(); loadBrand(); },
+    noti: function () { loadNoti(); },
+    sync: function () { loadSync(); }
+  };
+
   document.querySelectorAll("[data-tab]").forEach(function (btn) {
     btn.onclick = function () {
       document.querySelectorAll("[data-tab]").forEach(function (b) { b.classList.remove("primary"); });
       btn.classList.add("primary");
-      ["apps", "consults", "pay", "sync"].forEach(function (t) {
+      ["apps", "consults", "pay", "noti", "sync"].forEach(function (t) {
         el("tab-" + t).classList.toggle("hidden", t !== btn.dataset.tab);
       });
+      // 탭을 열 때마다 최신 상태를 다시 불러온다 (로그인 시점 데이터가 남지 않도록)
+      TAB_LOADERS[btn.dataset.tab]();
     };
   });
 
@@ -309,6 +374,34 @@
       chip.onclick = function () { chip.classList.toggle("on"); };
     });
     el("d-message").value = a.admin_message || "";
+
+    // 카카오채널 친구추가 확인 · 이벤트 적용
+    const vLabel = { yes: '<span class="badge ok">친구추가 확인됨</span>',
+                     no: '<span class="badge bad">친구추가 안 됨</span>',
+                     "": '<span class="badge warn">확인 대기</span>' }[a.kakao_verified || ""];
+    el("d-kakao").innerHTML =
+      '<div class="doc-item"><div class="doc-head">' +
+      '<span class="t">신청자 확인</span>' +
+      (a.kakao_friend ? '<span class="badge ok">친구추가했다고 체크함</span>'
+                      : '<span class="badge bad">체크 안 함</span>') +
+      '<div class="spacer"></div>' + vLabel +
+      (a.event_applied ? '<span class="badge ok">이벤트 적용</span>'
+                       : '<span class="badge bad">이벤트 미적용</span>') +
+      '</div><div class="doc-desc">채널 관리자센터에서 친구 여부를 확인한 뒤 아래를 눌러주세요. ' +
+      '친구를 삭제한 경우 이벤트 대상에서 빠집니다.</div>' +
+      '<div class="file-row"><button class="small" data-kakao="yes">친구 확인됨 · 이벤트 적용</button>' +
+      '<button class="small danger" data-kakao="no">친구 아님 · 이벤트 제외</button>' +
+      '<button class="small" data-kakao="">확인 대기로</button></div></div>';
+    el("d-kakao").querySelectorAll("[data-kakao]").forEach(function (b) {
+      b.onclick = function () {
+        adminApi("/api/admin/applications/" + encodeURIComponent(a.code) + "/kakao",
+                 { method: "POST", body: { verified: b.dataset.kakao, event_applied: true } })
+          .then(function (u) { Care.toast("저장했습니다."); renderDetail(u); loadList(); })
+          .catch(function (e) { Care.toast(e.message, true); });
+      };
+    });
+
+    loadNoti(a.code);
 
     const evs = (a.events || []).slice().reverse();
     el("d-timeline").innerHTML = evs.map(function (e) {
@@ -423,6 +516,94 @@
     }).then(function () { Care.toast("저장했습니다. 메인 화면에 바로 반영됩니다."); loadPay(); })
       .catch(function (e) { Care.toast(e.message, true); });
   };
+
+  // ── 서비스명 · 카카오채널 ──
+  function loadBrand() {
+    adminApi("/api/admin/brand").then(function (b) {
+      el("b-name").value = b.service_name || "";
+      el("b-tagline").value = b.tagline || "";
+      el("b-channel-name").value = b.channel_name || "";
+      el("b-channel-url").value = b.channel_url || "";
+      el("b-event").value = b.event_notice || "";
+    }).catch(function (e) { Care.toast(e.message, true); });
+  }
+  el("b-save").onclick = function () {
+    adminApi("/api/admin/brand", { method: "PUT", body: {
+      service_name: el("b-name").value.trim(), tagline: el("b-tagline").value.trim(),
+      channel_name: el("b-channel-name").value.trim(), channel_url: el("b-channel-url").value.trim(),
+      event_notice: el("b-event").value.trim()
+    }}).then(function () { Care.toast("저장했습니다. 메인 화면에 바로 반영됩니다."); loadBrand(); })
+      .catch(function (e) { Care.toast(e.message, true); });
+  };
+
+  // ── 알림톡 ──
+  const NOTI_STATUS = { sent: ['ok', '발송됨'], failed: ['bad', '실패'],
+                        skipped: ['warn', '미발송'], queued: ['', '대기'] };
+
+  function notiRow(n, compact) {
+    const st = NOTI_STATUS[n.status] || ["", n.status];
+    const preview = (n.body || "").split("\n").filter(Boolean).slice(0, 2).join(" / ");
+    if (compact) {
+      return '<div class="doc-item"><div class="doc-head"><span class="t">' + E(n.template_title) + "</span>" +
+        '<span class="badge ' + st[0] + '">' + st[1] + "</span>" +
+        '<div class="spacer"></div><span class="small muted">' + Care.fmtDate(n.created_at) + "</span></div>" +
+        '<div class="doc-desc" style="white-space:pre-wrap">' + E(n.body) + "</div>" +
+        (n.detail ? '<div class="small muted">' + E(n.detail) + "</div>" : "") + "</div>";
+    }
+    return "<tr><td class='small'>" + Care.fmtDate(n.created_at) + "</td>" +
+      "<td class='mono small'>" + E(n.app_code || "-") + "</td><td>" + E(n.template_title) + "</td>" +
+      "<td>" + E(n.phone) + "</td>" +
+      '<td><span class="badge ' + st[0] + '">' + st[1] + "</span></td>" +
+      "<td class='small'>" + E(preview) + "</td>" +
+      '<td><button class="small" data-resend="' + n.id + '">재발송</button></td></tr>';
+  }
+
+  function loadNoti(code) {
+    const q = code ? "?code=" + encodeURIComponent(code) : "";
+    adminApi("/api/admin/notifications" + q).then(function (data) {
+      if (code) {
+        el("d-noti").innerHTML = data.items.length
+          ? data.items.map(function (n) { return notiRow(n, true); }).join("")
+          : '<p class="muted small">발송된 알림톡이 없습니다.</p>';
+        return;
+      }
+      const rows = [
+        ["발송 방식", data.live ? '<span class="badge ok">실제 발송 중 (webhook)</span>'
+          : '<span class="badge warn">문구 확인 모드 (dryrun) — 실제로 보내지 않음</span>'],
+        ["승인된 템플릿 ID", data.template_ids.length ? E(data.template_ids.join(", "))
+          : '<span class="badge bad">미등록 — 카카오 심사 후 환경변수에 입력 필요</span>'],
+        ["발송 / 실패 / 미발송", data.sent + "건 / " + data.failed + "건 / " + data.skipped + "건"],
+        ["대기 중", String(data.pending)],
+        ["마지막 발송", data.last_sent ? Care.fmtDate(data.last_sent) : "-"],
+        ["마지막 오류", data.last_error ? '<span class="small" style="color:var(--red)">' +
+          E(data.last_error) + "</span>" : "없음"]
+      ];
+      el("noti-state").innerHTML = '<dl class="kv">' + rows.map(function (r) {
+        return "<dt>" + E(r[0]) + "</dt><dd>" + r[1] + "</dd>";
+      }).join("") + "</dl>";
+
+      el("noti-rows").innerHTML = data.items.length
+        ? data.items.map(function (n) { return notiRow(n, false); }).join("")
+        : '<tr><td colspan="7" class="muted small">발송 이력이 없습니다.</td></tr>';
+      el("noti-rows").querySelectorAll("[data-resend]").forEach(function (b) {
+        b.onclick = function () {
+          b.disabled = true;
+          adminApi("/api/admin/notifications/" + b.dataset.resend + "/resend", { method: "POST" })
+            .then(function () { Care.toast("재발송을 요청했습니다."); setTimeout(function () { loadNoti(); }, 800); })
+            .catch(function (e) { Care.toast(e.message, true); b.disabled = false; });
+        };
+      });
+
+      el("noti-templates").innerHTML = data.templates.map(function (t) {
+        return '<div class="doc-item"><div class="doc-head"><span class="t">' + E(t.title) + "</span>" +
+          '<span class="badge">' + E(t.key) + "</span></div>" +
+          '<div class="doc-desc">발송 시점: ' + E(t.when) + "</div>" +
+          '<div class="doc-desc" style="white-space:pre-wrap; background:var(--gray-soft); ' +
+          'padding:10px 12px; border-radius:8px; margin-top:8px">' + E(t.body) + "</div></div>";
+      }).join("");
+    }).catch(function (e) { Care.toast(e.message, true); });
+  }
+  el("noti-refresh").onclick = function () { loadNoti(); };
 
   // ── 구글 시트 연동 ──
   function loadSync() {

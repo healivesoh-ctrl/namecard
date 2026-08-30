@@ -36,7 +36,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import db, gsync
+from . import db, gsync, notify
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "12")) * 1024 * 1024
@@ -89,6 +89,12 @@ def _row_to_app(row) -> dict:
     except json.JSONDecodeError:
         d["missing_docs"] = []
     d["missing_doc_labels"] = [db.DOC_LABELS.get(k, k) for k in d["missing_docs"]]
+    try:
+        d["consents"] = json.loads(d.get("consents") or "{}")
+    except json.JSONDecodeError:
+        d["consents"] = {}
+    d["kakao_friend"] = bool(d.get("kakao_friend"))
+    d["event_applied"] = bool(d.get("event_applied"))
     d["status_label"] = db.STATUS_LABELS.get(d["status"], d["status"])
     d["step"] = db.STATUS_ORDER.index(d["status"]) if d["status"] in db.STATUS_ORDER else 1
     return d
@@ -151,6 +157,8 @@ class ApplicationIn(BaseModel):
     service_days: int = db.DEFAULT_SERVICE_DAYS
     health_center_code: str = Field(default="", max_length=40)
     memo: str = Field(default="", max_length=1000)
+    consents: dict[str, bool] = Field(default_factory=dict)  # 개인정보·민감정보·알림톡 동의
+    kakao_friend: bool = False                               # 카카오채널 친구추가 확인
     submit: bool = False  # True 면 저장과 동시에 접수(자동승인)
 
 
@@ -171,6 +179,8 @@ def _clean(payload: ApplicationIn) -> dict:
         "service_days": days,
         "health_center_code": payload.health_center_code.strip(),
         "memo": payload.memo.strip(),
+        "consents": {k: bool(payload.consents.get(k)) for k in db.CONSENT_KEYS},
+        "kakao_friend": 1 if payload.kakao_friend else 0,
     }
 
 
@@ -188,6 +198,22 @@ def _check_submittable(fields: dict) -> None:
     if missing:
         raise HTTPException(400, "접수하려면 다음 항목이 필요합니다: " + ", ".join(missing))
 
+    consents = fields.get("consents") or {}
+    if isinstance(consents, str):
+        try:
+            consents = json.loads(consents)
+        except json.JSONDecodeError:
+            consents = {}
+    not_agreed = [c["label"] for c in db.CONSENTS if c["required"] and not consents.get(c["key"])]
+    if not_agreed:
+        raise HTTPException(400, "다음 항목에 동의해야 접수할 수 있습니다: " + ", ".join(not_agreed))
+    if not fields.get("kakao_friend"):
+        raise HTTPException(
+            400,
+            "다이음 카카오채널 친구추가가 필요합니다. 모든 진행 안내가 알림톡으로 발송되며, "
+            "친구추가를 하지 않으면 이벤트 혜택도 적용되지 않습니다.",
+        )
+
 
 # ── 공개 API ────────────────────────────────────────────────
 
@@ -201,7 +227,11 @@ def info():
     """접수 전에 확인하는 안내: 필요한 서류, 입력 항목, 이번 달 친정엄마 소득."""
     with db.db() as conn:
         pay = db.get_setting(conn, "pay", db.DEFAULT_PAY)
+        brand = db.get_setting(conn, "brand", db.DEFAULT_BRAND)
     return {
+        "brand": brand,
+        "consents": db.CONSENTS,
+        "consent_version": db.CONSENT_VERSION,
         "documents": db.DOC_TYPES,
         "fields": [
             {"key": k, "label": label, "required": True} for k, label in REQUIRED_FIELDS
@@ -231,24 +261,32 @@ def create_application(payload: ApplicationIn, request: Request):
         token = db.new_token()
         ts = db.now()
         status = "received" if payload.submit else "draft"
+        agreed = any(fields["consents"].values())
         cur = conn.execute(
             "INSERT INTO applications(code, token, mother_name, mother_phone, helper_name, helper_phone,"
             " helper_relation, relation_detail, due_date, service_days, health_center_code, memo,"
+            " consents, consent_at, consent_version, kakao_friend, event_applied,"
             " status, created_at, updated_at, submitted_at)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 code, token, fields["mother_name"], fields["mother_phone"], fields["helper_name"],
                 fields["helper_phone"], fields["helper_relation"], fields["relation_detail"],
                 fields["due_date"], fields["service_days"], fields["health_center_code"], fields["memo"],
+                json.dumps(fields["consents"], ensure_ascii=False), ts if agreed else "",
+                db.CONSENT_VERSION if agreed else "", fields["kakao_friend"], fields["kakao_friend"],
                 status, ts, ts, ts if payload.submit else "",
             ),
         )
         app_id = int(cur.lastrowid)
         db.add_event(conn, app_id, "created", "신청서가 작성되었습니다.")
+        notif = None
         if payload.submit:
             db.add_event(conn, app_id, "received", "접수가 자동 승인되었습니다. 서류 검토 전까지 서류를 추가할 수 있습니다.")
         row = conn.execute("SELECT * FROM applications WHERE id=?", (app_id,)).fetchone()
         data = _detail(conn, row)
+        if payload.submit:
+            notif = notify.queue_status_change(conn, dict(row), data["missing_now"])
+    notify.dispatch(notif)
     gsync.queue_application(code)
     data["token"] = token
     return data
@@ -290,14 +328,20 @@ def update_application(code: str, payload: ApplicationIn, token: str = Query(def
         row = _fetch_by_token(conn, code, token)
         if row["status"] == "confirmed":
             raise HTTPException(409, "최종확인이 완료된 신청서는 수정할 수 없습니다. 다이음으로 문의해 주세요.")
+        agreed = any(fields["consents"].values())
         conn.execute(
             "UPDATE applications SET mother_name=?, mother_phone=?, helper_name=?, helper_phone=?,"
             " helper_relation=?, relation_detail=?, due_date=?, service_days=?, health_center_code=?,"
-            " memo=?, updated_at=? WHERE id=?",
+            " memo=?, consents=?, consent_at=?, consent_version=?, kakao_friend=?, updated_at=?"
+            " WHERE id=?",
             (
                 fields["mother_name"], fields["mother_phone"], fields["helper_name"], fields["helper_phone"],
                 fields["helper_relation"], fields["relation_detail"], fields["due_date"],
-                fields["service_days"], fields["health_center_code"], fields["memo"], db.now(), row["id"],
+                fields["service_days"], fields["health_center_code"], fields["memo"],
+                json.dumps(fields["consents"], ensure_ascii=False),
+                db.now() if agreed else row["consent_at"],
+                db.CONSENT_VERSION if agreed else row["consent_version"],
+                fields["kakao_friend"], db.now(), row["id"],
             ),
         )
         db.add_event(conn, row["id"], "updated", "신청 정보가 수정되었습니다.", actor="신청자")
@@ -329,6 +373,8 @@ def submit_application(code: str, token: str = Query(default="")):
         )
         row = conn.execute("SELECT * FROM applications WHERE id=?", (row["id"],)).fetchone()
         detail = _detail(conn, row)
+        notif = notify.queue_status_change(conn, dict(row), detail["missing_now"])
+    notify.dispatch(notif)
     gsync.queue_application(row["code"])
     return detail
 
@@ -450,6 +496,9 @@ def create_consultation(payload: ConsultationIn, request: Request):
             ),
         )
         cid = int(cur.lastrowid)
+        c = conn.execute("SELECT * FROM consultations WHERE id=?", (cid,)).fetchone()
+        notif = notify.queue_consultation(conn, dict(c))
+    notify.dispatch(notif)
     gsync.queue_consultation(cid)
     return {"ok": True, "message": "전화상담 신청이 접수되었습니다. 담당자가 순차적으로 연락드립니다."}
 
@@ -539,6 +588,9 @@ def admin_set_status(code: str, payload: StatusIn, _: str = Depends(require_admi
         db.add_event(conn, row["id"], payload.status, text.strip(), actor="다이음 관리자")
         row = conn.execute("SELECT * FROM applications WHERE id=?", (row["id"],)).fetchone()
         detail = _detail(conn, row)
+        labels = [db.DOC_LABELS[k] for k in missing] or detail["missing_now"]
+        notif = notify.queue_status_change(conn, dict(row), labels)
+    notify.dispatch(notif)
     gsync.queue_application(row["code"])
     return detail
 
@@ -608,6 +660,96 @@ def admin_set_pay(payload: PayIn, _: str = Depends(require_admin)):
     with db.db() as conn:
         db.set_setting(conn, "pay", value)
     return value
+
+
+class BrandIn(BaseModel):
+    service_name: str = Field(default="", max_length=60)
+    tagline: str = Field(default="", max_length=120)
+    channel_name: str = Field(default="", max_length=40)
+    channel_url: str = Field(default="", max_length=300)
+    event_notice: str = Field(default="", max_length=400)
+
+
+@app.get("/api/admin/brand")
+def admin_get_brand(_: str = Depends(require_admin)):
+    with db.db() as conn:
+        return db.get_setting(conn, "brand", db.DEFAULT_BRAND)
+
+
+@app.put("/api/admin/brand")
+def admin_set_brand(payload: BrandIn, _: str = Depends(require_admin)):
+    """서비스명·홍보문구·카카오채널 주소. 메인 화면과 신청서에 바로 반영된다."""
+    url = payload.channel_url.strip()
+    if url and not url.startswith(("http://", "https://")):
+        raise HTTPException(400, "카카오채널 주소는 http:// 또는 https:// 로 시작해야 합니다.")
+    value = {
+        "service_name": payload.service_name.strip() or db.DEFAULT_BRAND["service_name"],
+        "tagline": payload.tagline.strip(),
+        "channel_name": payload.channel_name.strip() or db.DEFAULT_BRAND["channel_name"],
+        "channel_url": url,
+        "event_notice": payload.event_notice.strip(),
+        "updated_at": db.now(),
+    }
+    with db.db() as conn:
+        db.set_setting(conn, "brand", value)
+    return value
+
+
+class KakaoIn(BaseModel):
+    verified: str = ""          # '' | 'yes' | 'no'
+    event_applied: bool = True
+
+
+@app.post("/api/admin/applications/{code}/kakao")
+def admin_set_kakao(code: str, payload: KakaoIn, _: str = Depends(require_admin)):
+    """채널 친구추가 확인 결과와 이벤트 적용 여부를 기록한다.
+
+    친구를 삭제하면 이벤트 대상에서 빠지므로, 확인 결과를 남겨 근거로 삼는다.
+    """
+    if payload.verified not in ("", "yes", "no"):
+        raise HTTPException(400, "알 수 없는 확인 결과입니다.")
+    with db.db() as conn:
+        row = conn.execute("SELECT * FROM applications WHERE code=?", (code.strip().upper(),)).fetchone()
+        if row is None:
+            raise HTTPException(404, "신청 내역을 찾을 수 없습니다.")
+        applied = 1 if (payload.event_applied and payload.verified != "no") else 0
+        conn.execute(
+            "UPDATE applications SET kakao_verified=?, event_applied=?, updated_at=? WHERE id=?",
+            (payload.verified, applied, db.now(), row["id"]),
+        )
+        text = {"yes": "채널 친구추가 확인됨", "no": "채널 친구추가 미확인 — 이벤트 미적용",
+                "": "채널 친구추가 확인 대기"}[payload.verified]
+        db.add_event(conn, row["id"], "kakao", text, actor="다이음 관리자")
+        row = conn.execute("SELECT * FROM applications WHERE id=?", (row["id"],)).fetchone()
+        detail = _detail(conn, row)
+    gsync.queue_application(row["code"])
+    return detail
+
+
+@app.get("/api/admin/notifications")
+def admin_notifications(code: str = Query(default=""), _: str = Depends(require_admin)):
+    """알림톡 발송 이력. code 를 주면 그 신청 건만."""
+    sql = ("SELECT n.*, a.code AS app_code FROM notifications n"
+           " LEFT JOIN applications a ON a.id = n.application_id")
+    args: list = []
+    if code.strip():
+        sql += " WHERE a.code = ?"
+        args.append(code.strip().upper())
+    sql += " ORDER BY n.id DESC LIMIT 200"
+    with db.db() as conn:
+        rows = [dict(r) for r in conn.execute(sql, args)]
+    for r in rows:
+        r["template_title"] = notify.TEMPLATES.get(r["template_key"], {}).get("title", r["template_key"])
+    return {"items": rows, **notify.status()}
+
+
+@app.post("/api/admin/notifications/{nid}/resend")
+def admin_resend(nid: int, _: str = Depends(require_admin)):
+    with db.db() as conn:
+        if conn.execute("SELECT 1 FROM notifications WHERE id=?", (nid,)).fetchone() is None:
+            raise HTTPException(404, "발송 내역을 찾을 수 없습니다.")
+    notify.resend(nid)
+    return {"ok": True}
 
 
 @app.get("/api/admin/sync")

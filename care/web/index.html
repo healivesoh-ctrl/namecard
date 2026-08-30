@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>친정엄마 산모신생아건강관리사 신청 | 다이음</title>
-<meta name="description" content="가족·지인이 산모신생아건강관리사로 활동하는 친정엄마 서비스 온라인 신청. 필요 서류와 이번 달 예상 소득을 접수 전에 확인하세요.">
+<title>다이음 다이렉트 | 친정엄마 산모신생아건강관리사 신청</title>
+<meta name="description" content="다이음 다이렉트 — 신청을 직접 하면 수수료율이 낮아지고 친정엄마 급여가 올라갑니다. 필요 서류와 이번 달 예상 소득을 접수 전에 확인하세요.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A4%B1%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="app.css">
 </head>
@@ -12,21 +12,56 @@
 <div class="wrap">
 
   <div class="topbar">
-    <a class="brand" href="./">다이음 <span>친정엄마</span></a>
+    <a class="brand" href="./">다이음 <span>다이렉트</span></a>
     <div class="spacer"></div>
     <a class="nav" href="status.html">내 신청 조회</a>
     <a class="nav" href="admin.html">관리자</a>
   </div>
 
   <section class="panel hero">
-    <h1>친정엄마 산모신생아건강관리사 신청</h1>
-    <p>가족 또는 지인이 산모신생아건강관리사로 산모와 신생아를 돌보는 제도입니다.<br>
-       필요한 서류와 입력 항목을 <strong>접수 전에 미리 확인</strong>하고, 준비되는 대로 하나씩 올리면 됩니다.</p>
-    <div class="btn-row" style="margin-top:16px">
+    <p class="eyebrow" id="hero-eyebrow">친정엄마 산모신생아건강관리사</p>
+    <h1 id="hero-title">다이음 다이렉트</h1>
+    <p class="tagline" id="hero-tagline">직접 신청해서, 친정엄마 급여를 가장 높게</p>
+    <p style="margin-top:12px">
+      다이렉트 보험처럼, <strong>신청 과정을 전산화해 직접 진행</strong>하는 방식입니다.
+      설계사를 거치지 않는 만큼 <strong>수수료율이 가장 낮고</strong>, 그만큼
+      <strong>친정엄마가 받는 급여가 가장 높아집니다.</strong>
+    </p>
+    <div class="why" style="margin-top:16px">
+      <div class="why-item"><span class="why-n">1</span>
+        <div><strong>스스로 신청, 가장 낮은 수수료율</strong>
+        <div class="why-d">복잡한 서류 접수를 온라인으로 전산화했습니다. 중간 과정이 줄어든 만큼 수수료가 내려갑니다.</div></div></div>
+      <div class="why-item"><span class="why-n">2</span>
+        <div><strong>그래서 친정엄마 급여가 가장 높습니다</strong>
+        <div class="why-d">낮아진 수수료는 그대로 산후도우미 급여로 갑니다. 이번 달 예상 소득은 아래에서 확인하세요.</div></div></div>
+      <div class="why-item"><span class="why-n">3</span>
+        <div><strong>신청 이후는 오리지널 다이음 그대로</strong>
+        <div class="why-d">근로계약 체결, 제공기록지 작성 등은 기존 다이음과 <strong>동일한 시스템</strong>을 사용합니다.
+        새로 배울 것 없이 편의는 그대로, 시간과 비용만 줄어듭니다.</div></div></div>
+    </div>
+    <div class="btn-row" style="margin-top:20px">
       <a class="btn primary" href="apply.html">온라인 신청 접수하기</a>
       <button id="btn-consult">전화상담 신청하기</button>
       <a class="btn" href="status.html">내 신청 조회 · 서류 추가</a>
     </div>
+  </section>
+
+  <!-- 카카오채널 친구추가 — 필수 조건 -->
+  <section class="panel kakao-panel">
+    <h2>먼저 <span id="channel-name">다이음</span> 카카오채널을 추가해 주세요 <span class="badge bad">필수</span></h2>
+    <p class="lead">접수·검토·보완요청·최종확인 등 <strong>모든 진행 안내가 알림톡으로만 발송</strong>됩니다.
+       채널을 추가하지 않으면 안내를 받으실 수 없습니다.</p>
+    <div class="notice warn">
+      <strong>이벤트 혜택 조건</strong>
+      <span id="event-notice">카카오채널 친구추가를 하지 않거나 친구를 삭제하시면 이벤트 혜택이 적용되지 않습니다.</span>
+      친구 상태는 <strong>이용 기간 동안 유지</strong>되어야 합니다.
+    </div>
+    <div class="btn-row">
+      <a class="btn primary" id="channel-link" href="#" target="_blank" rel="noopener">카카오채널 친구추가하기</a>
+    </div>
+    <p class="small muted" id="channel-missing" style="margin-top:10px">
+      채널 주소가 아직 등록되지 않았습니다. 관리자 화면에서 등록하면 이 버튼이 연결됩니다.
+    </p>
   </section>
 
   <!-- 친정엄마 소득 — 관리자가 매달 변경하면 이 영역이 함께 바뀐다 -->
@@ -53,16 +88,26 @@
   </section>
 
   <section class="panel">
+    <h2>수집하는 개인정보와 동의 항목</h2>
+    <p class="lead">접수 화면에서 아래 항목에 동의하시게 됩니다. 어떤 정보를 왜 받는지 미리 확인하세요.</p>
+    <div class="doc-list" id="consent-list"></div>
+    <p class="small muted" style="margin-top:12px">
+      건강검진결과서·예방접종 기록은 <strong>민감정보</strong>로 분류되어 별도 동의를 받습니다.
+      동의하지 않으셔도 되지만, 필수 항목에 동의하지 않으면 접수가 진행되지 않습니다.
+    </p>
+  </section>
+
+  <section class="panel">
     <h2>진행 절차</h2>
     <div class="doc-list">
       <div class="doc-item"><div class="doc-head"><span class="badge info">1</span><span class="t">온라인 접수 (자동 승인)</span></div>
-        <div class="doc-desc">신청서를 제출하면 접수는 자동으로 승인됩니다. 서류가 없어도 접수 자체는 완료됩니다.</div></div>
+        <div class="doc-desc">신청서를 제출하면 접수는 자동으로 승인되고, 곧바로 <strong>알림톡</strong>으로 접수번호가 발송됩니다. 서류가 없어도 접수 자체는 완료됩니다.</div></div>
       <div class="doc-item"><div class="doc-head"><span class="badge info">2</span><span class="t">서류 업로드 (나눠서 가능)</span></div>
         <div class="doc-desc">준비된 서류부터 올려두고, 나머지는 준비되는 대로 추가하면 됩니다. 접수하지 않고 임시저장만 해둘 수도 있습니다.</div></div>
       <div class="doc-item"><div class="doc-head"><span class="badge warn">3</span><span class="t">다이음 관리자 서류 검토</span></div>
-        <div class="doc-desc">부족한 서류가 있으면 어떤 서류가 왜 부족한지 메시지로 안내(반려)해 드립니다. 부족한 서류만 다시 올리면 됩니다.</div></div>
+        <div class="doc-desc">부족한 서류가 있으면 어떤 서류가 왜 부족한지 <strong>알림톡</strong>으로 안내(반려)해 드립니다. 부족한 서류만 다시 올리면 됩니다.</div></div>
       <div class="doc-item"><div class="doc-head"><span class="badge ok">4</span><span class="t">최종확인 완료</span></div>
-        <div class="doc-desc">확인이 끝나면 조회 페이지에서 <strong>접수 → 검토 → 최종확인</strong> 중 어느 단계인지 바로 볼 수 있습니다.</div></div>
+        <div class="doc-desc">확인이 끝나면 알림톡으로 알려드리고, 조회 페이지에서 <strong>접수 → 검토 → 최종확인</strong> 중 어느 단계인지 언제든 볼 수 있습니다. 이후 근로계약과 제공기록지는 오리지널 다이음 시스템에서 이어집니다.</div></div>
     </div>
   </section>
 
@@ -158,10 +203,37 @@
     }).join("");
   }
 
+  function renderBrand(brand) {
+    if (brand.service_name) document.getElementById("hero-title").textContent = brand.service_name;
+    if (brand.tagline) document.getElementById("hero-tagline").textContent = brand.tagline;
+    if (brand.channel_name) document.getElementById("channel-name").textContent = brand.channel_name;
+    if (brand.event_notice) document.getElementById("event-notice").textContent = brand.event_notice;
+    const link = document.getElementById("channel-link");
+    if (brand.channel_url) {
+      link.href = brand.channel_url;
+      document.getElementById("channel-missing").classList.add("hidden");
+    } else {
+      link.classList.add("hidden");
+    }
+  }
+
+  function renderConsents(list) {
+    document.getElementById("consent-list").innerHTML = list.map(function (c) {
+      return '<div class="doc-item"><div class="doc-head"><span class="t">' + E(c.label) + "</span>" +
+        (c.required ? '<span class="badge bad">필수</span>' : '<span class="badge">선택</span>') +
+        '</div><div class="doc-desc"><strong>목적</strong> ' + E(c.purpose) +
+        '<br><strong>항목</strong> ' + E(c.items) +
+        '<br><strong>보유기간</strong> ' + E(c.period) +
+        '<br>' + E(c.note) + "</div></div>";
+    }).join("");
+  }
+
   Care.api("/api/info").then(function (info) {
+    renderBrand(info.brand || {});
     renderPay(info.pay || {});
     renderDocs(info.documents || []);
     renderFields(info.fields || []);
+    renderConsents(info.consents || []);
   }).catch(function (e) {
     document.getElementById("pay-sub").textContent = "안내 정보를 불러오지 못했습니다: " + e.message;
   });

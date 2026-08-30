@@ -153,3 +153,33 @@ table.list tr.click:hover { background: var(--gray-soft); }
 dialog { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
          color: var(--text); padding: 20px; max-width: 520px; width: calc(100vw - 32px); box-shadow: var(--shadow); }
 dialog::backdrop { background: rgba(20,10,14,.45); }
+
+/* ── 다이음 다이렉트 브랜딩 · 동의 · 카카오채널 ── */
+.hero .eyebrow { font-size: 12.5px; font-weight: 700; letter-spacing: .04em; color: var(--accent); }
+.hero h1 { margin: 4px 0 2px; }
+.hero .tagline { font-size: 16px; font-weight: 700; color: var(--text); }
+
+.why { display: grid; gap: 10px; }
+.why-item { display: grid; grid-template-columns: 26px 1fr; gap: 11px; align-items: start;
+            background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.why-n { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px;
+         background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; }
+.why-d { font-size: 12.8px; color: var(--muted); margin-top: 3px; }
+
+.kakao-panel { border-color: var(--accent); }
+.kakao-panel h2 { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+
+/* 동의 체크 */
+.agree { border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; background: var(--card); }
+.agree + .agree { margin-top: 9px; }
+.agree.all { background: var(--accent-soft); border-color: var(--accent); }
+.agree-row { display: flex; align-items: flex-start; gap: 10px; }
+.agree-row input[type=checkbox] { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--accent); }
+.agree-row .t { flex: 1; font-size: 14.5px; font-weight: 600; cursor: pointer; }
+.agree.all .agree-row .t { font-size: 15px; }
+.agree .more { font: inherit; font-size: 12.5px; color: var(--muted); background: none;
+               border: none; padding: 0; cursor: pointer; text-decoration: underline; flex: none; }
+.agree dl { display: grid; grid-template-columns: 84px 1fr; gap: 5px 10px; margin: 11px 0 0;
+            padding-top: 11px; border-top: 1px dashed var(--border); font-size: 12.8px; }
+.agree dt { color: var(--muted); }
+.agree dd { margin: 0; }
