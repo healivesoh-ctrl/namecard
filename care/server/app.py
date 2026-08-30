@@ -704,7 +704,7 @@ class KakaoIn(BaseModel):
 def admin_set_kakao(code: str, payload: KakaoIn, _: str = Depends(require_admin)):
     """채널 친구추가 확인 결과와 이벤트 적용 여부를 기록한다.
 
-    이벤트는 친구추가 후 1년 유지가 조건이므로, 확인 결과를 남겨 근거로 삼는다.
+    이벤트는 채널 친구추가가 조건이므로, 확인 결과를 남겨 근거로 삼는다.
     """
     if payload.verified not in ("", "yes", "no"):
         raise HTTPException(400, "알 수 없는 확인 결과입니다.")

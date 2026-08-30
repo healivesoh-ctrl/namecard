@@ -116,7 +116,7 @@ DEFAULT_BRAND = {
     "tagline": "직접 신청해서, 친정엄마 급여를 가장 높게",
     "channel_name": "다이음",
     "channel_url": "",
-    "event_notice": "이벤트 혜택은 다이음 채널을 친구추가하고 1년간 유지해 주시는 분께 적용됩니다.",
+    "event_notice": "이벤트 혜택은 다이음 채널을 친구추가하신 분께 적용됩니다.",
     "updated_at": "",
 }
 

@@ -137,7 +137,8 @@ def test_alimtalk_queued_on_submit(client):
     assert "산모신생아건강관리사 교육수료증" in n["body"]   # 아직 안 낸 서류를 알려준다
     # 채널은 "삭제하면 못 받는다"가 아니라 "진행 상황을 보는 창구"로 안내한다
     assert "카카오톡에서 바로 확인" in n["body"]
-    assert "1년간 유지" in n["body"]
+    assert "채널을 그대로 두시면" in n["body"]
+    assert "1년" not in n["body"]
     assert "삭제" not in n["body"]
 
 
