@@ -92,9 +92,13 @@
 
   <div class="step">
     <h2><span class="n">3</span> 여기에 붙여넣고 변환</h2>
-    <input type="text" id="appId" placeholder="앱 ID (숫자)">
-    <input type="password" id="appSecret" placeholder="앱 시크릿 코드">
-    <input type="password" id="shortToken" placeholder="2번에서 복사한 임시 토큰 (EAA...)">
+    <div class="note" style="margin:0 0 6px"><b>앱 시크릿 코드를 확인할 수 없다면</b> (비밀번호 확인이 안 되는 경우):
+      ① <a href="https://developers.facebook.com/tools/debug/accesstoken" target="_blank">토큰 디버거</a>에
+      2번 토큰을 붙여넣고 <b>디버그</b> → 하단의 <b>"액세스 토큰 연장"</b> 버튼 클릭 →
+      연장된 토큰을 복사. ② 아래에서 앱 ID·시크릿은 <b>비워 두고</b>, 연장된 토큰만 세 번째 칸에 넣고 변환하세요.</div>
+    <input type="text" id="appId" placeholder="앱 ID (숫자) — 시크릿 없이 진행 시 비워 두기">
+    <input type="password" id="appSecret" placeholder="앱 시크릿 코드 — 확인 불가 시 비워 두기">
+    <input type="password" id="shortToken" placeholder="토큰 (EAA...) — 2번 토큰 또는 연장된 토큰">
     <button id="btnGo">변환하기 (장기 토큰 + 인스타그램 ID 찾기)</button>
     <div class="err" id="errBox"></div>
     <div class="result" id="resultBox">
@@ -146,16 +150,21 @@ $("btnGo").onclick = async () => {
   const shortToken = $("shortToken").value.trim();
   $("errBox").classList.remove("show");
   $("resultBox").classList.remove("show");
-  if (!appId || !appSecret || !shortToken) return showErr("세 칸을 모두 채워 주세요.");
+  if (!shortToken) return showErr("토큰 칸을 채워 주세요.");
+  if ((appId && !appSecret) || (!appId && appSecret))
+    return showErr("앱 ID와 시크릿은 둘 다 넣거나, 둘 다 비워 두세요 (비울 경우 토큰 디버거에서 연장한 토큰 사용).");
   const btn = $("btnGo");
   btn.disabled = true; btn.textContent = "변환 중…";
   try {
-    // 1) 장기 토큰 교환
-    const ex = await gf("oauth/access_token", {
-      grant_type: "fb_exchange_token", client_id: appId,
-      client_secret: appSecret, fb_exchange_token: shortToken,
-    });
-    const longToken = ex.access_token;
+    // 1) 장기 토큰 교환 (앱 ID·시크릿이 있을 때만 — 없으면 이미 연장된 토큰으로 간주)
+    let longToken = shortToken;
+    if (appId && appSecret) {
+      const ex = await gf("oauth/access_token", {
+        grant_type: "fb_exchange_token", client_id: appId,
+        client_secret: appSecret, fb_exchange_token: shortToken,
+      });
+      longToken = ex.access_token;
+    }
     // 2) 페이지 목록 → 인스타그램 비즈니스 계정 찾기
     const pages = await gf("me/accounts", { access_token: longToken });
     if (!pages.data || !pages.data.length)
