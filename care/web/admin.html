@@ -53,6 +53,10 @@
           <button id="btn-reload">새로고침</button>
         </div>
         <div class="chips" id="counts"></div>
+        <div style="margin-top:12px">
+          <div class="lbl small muted" style="margin-bottom:6px">인지경로 (전체 신청 기준)</div>
+          <div class="chips" id="referral-counts"></div>
+        </div>
         <div class="scroll-x" style="margin-top:12px">
           <table class="list">
             <thead><tr>
@@ -280,6 +284,9 @@
       el("counts").innerHTML = Object.keys(data.statuses).map(function (k) {
         return '<span class="chip">' + E(data.statuses[k]) + " " + (data.counts[k] || 0) + "</span>";
       }).join("");
+      el("referral-counts").innerHTML = (data.referrals || []).map(function (r) {
+        return '<span class="chip">' + E(r.label) + " <strong>" + r.count + "</strong></span>";
+      }).join("") || '<span class="muted small">아직 집계할 신청이 없습니다.</span>';
       el("rows").innerHTML = data.items.length ? data.items.map(function (a) {
         const days = a.service_days + (a.service_days >= 25 ? "일+" : "일");
         const docs = a.doc_count + "건" + (a.missing_now.length ? " <span class='badge warn'>부족 " + a.missing_now.length + "</span>" : "");
@@ -330,6 +337,7 @@
       ["이용예정기간", a.service_days + (a.service_days >= 25 ? "일 이상" : "일")],
       ["산후조리원", a.center_use ? a.center_use + (a.center_period ? " · " + a.center_period : "") : "-"],
       ["바우처 구분코드", a.voucher_code || "미입력"],
+      ["알게 된 경로", a.referral ? a.referral + (a.referral_detail ? " (" + a.referral_detail + ")" : "") : "-"],
       ["남긴 말씀", a.memo], ["접수일시", a.submitted_at ? Care.fmtDate(a.submitted_at) : "미접수"],
       ["최종확인", a.confirmed_at ? Care.fmtDate(a.confirmed_at) : "-"]
     ];

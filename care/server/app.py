@@ -158,6 +158,8 @@ class ApplicationIn(BaseModel):
     voucher_code: str = Field(default="", max_length=40)
     center_use: str = Field(default="", max_length=20)
     center_period: str = Field(default="", max_length=20)
+    referral: str = Field(default="", max_length=40)
+    referral_detail: str = Field(default="", max_length=60)
     memo: str = Field(default="", max_length=1000)
     consents: dict[str, bool] = Field(default_factory=dict)  # 개인정보·민감정보·알림톡 동의
     kakao_friend: bool = False                               # 카카오채널 친구추가 확인
@@ -180,6 +182,12 @@ def _clean(payload: ApplicationIn) -> dict:
         raise HTTPException(400, "산후조리원 이용 기간을 다시 선택해 주세요.")
     if center_use != "이용함":
         period = ""          # 이용하지 않으면 기간은 남기지 않는다
+
+    referral = payload.referral.strip()
+    if referral and referral not in db.REFERRAL_OPTIONS:
+        raise HTTPException(400, "알게 되신 경로를 다시 선택해 주세요.")
+    # 자유 입력은 "기타"를 골랐을 때만 의미가 있다
+    referral_detail = payload.referral_detail.strip() if referral == "기타" else ""
     return {
         "mother_name": payload.mother_name.strip(),
         "mother_phone": db.normalize_phone(payload.mother_phone),
@@ -192,6 +200,8 @@ def _clean(payload: ApplicationIn) -> dict:
         "voucher_code": payload.voucher_code.strip(),
         "center_use": center_use,
         "center_period": period,
+        "referral": referral,
+        "referral_detail": referral_detail,
         "memo": payload.memo.strip(),
         "consents": {k: bool(payload.consents.get(k)) for k in db.CONSENT_KEYS},
         "kakao_friend": 1 if payload.kakao_friend else 0,
@@ -260,7 +270,11 @@ def info():
              "note": "산후조리원을 이용하시는 경우에만 선택합니다. 기간이 정해지지 않았으면 '미정'을 고르세요."},
             {"key": "voucher_code", "label": "바우처 구분코드", "required": False,
              "note": db.VOUCHER_CODE_HELP},
+            {"key": "referral", "label": "다이음 다이렉트를 알게 되신 경로", "required": False,
+             "options": db.REFERRAL_OPTIONS,
+             "note": "더 나은 안내를 준비하는 데 참고합니다. 답하지 않으셔도 접수에는 영향이 없습니다."},
         ],
+        "referral_options": db.REFERRAL_OPTIONS,
         "voucher_code_example": db.VOUCHER_CODE_EXAMPLE,
         "voucher_code_help": db.VOUCHER_CODE_HELP,
         "center_use_options": db.CENTER_USE_OPTIONS,
@@ -287,15 +301,16 @@ def create_application(payload: ApplicationIn, request: Request):
         cur = conn.execute(
             "INSERT INTO applications(code, token, mother_name, mother_phone, helper_name, helper_phone,"
             " helper_relation, relation_detail, due_date, service_days, voucher_code,"
-            " center_use, center_period, memo,"
+            " center_use, center_period, referral, referral_detail, memo,"
             " consents, consent_at, consent_version, kakao_friend, event_applied,"
             " status, created_at, updated_at, submitted_at)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 code, token, fields["mother_name"], fields["mother_phone"], fields["helper_name"],
                 fields["helper_phone"], fields["helper_relation"], fields["relation_detail"],
                 fields["due_date"], fields["service_days"], fields["voucher_code"],
-                fields["center_use"], fields["center_period"], fields["memo"],
+                fields["center_use"], fields["center_period"],
+                fields["referral"], fields["referral_detail"], fields["memo"],
                 json.dumps(fields["consents"], ensure_ascii=False), ts if agreed else "",
                 db.CONSENT_VERSION if agreed else "", fields["kakao_friend"], fields["kakao_friend"],
                 status, ts, ts, ts if payload.submit else "",
@@ -370,14 +385,15 @@ def update_application(code: str, payload: ApplicationIn, token: str = Query(def
         conn.execute(
             "UPDATE applications SET mother_name=?, mother_phone=?, helper_name=?, helper_phone=?,"
             " helper_relation=?, relation_detail=?, due_date=?, service_days=?, voucher_code=?,"
-            " center_use=?, center_period=?,"
+            " center_use=?, center_period=?, referral=?, referral_detail=?,"
             " memo=?, consents=?, consent_at=?, consent_version=?, kakao_friend=?, updated_at=?"
             " WHERE id=?",
             (
                 fields["mother_name"], fields["mother_phone"], fields["helper_name"], fields["helper_phone"],
                 fields["helper_relation"], fields["relation_detail"], fields["due_date"],
                 fields["service_days"], fields["voucher_code"],
-                fields["center_use"], fields["center_period"], fields["memo"],
+                fields["center_use"], fields["center_period"],
+                fields["referral"], fields["referral_detail"], fields["memo"],
                 json.dumps(fields["consents"], ensure_ascii=False),
                 db.now() if agreed else row["consent_at"],
                 db.CONSENT_VERSION if agreed else row["consent_version"],
@@ -571,7 +587,13 @@ def admin_list(status: str = Query(default=""), q: str = Query(default=""), _: s
             r["status"]: r["n"]
             for r in conn.execute("SELECT status, COUNT(*) AS n FROM applications GROUP BY status")
         }
-    return {"items": items, "counts": counts, "statuses": db.STATUS_LABELS}
+        # 인지경로 집계 — 어디에 홍보를 더 할지 판단하는 근거. 전체 신청 기준이다.
+        referrals = [
+            {"label": r["referral"] or "응답 없음", "count": r["n"]}
+            for r in conn.execute(
+                "SELECT referral, COUNT(*) AS n FROM applications GROUP BY referral ORDER BY n DESC")
+        ]
+    return {"items": items, "counts": counts, "statuses": db.STATUS_LABELS, "referrals": referrals}
 
 
 @app.get("/api/admin/applications/{code}")

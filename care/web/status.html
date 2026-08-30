@@ -254,6 +254,7 @@
       ["이용예정기간", app.service_days ? app.service_days + (app.service_days >= 25 ? "일 이상" : "일") : ""],
       ["산후조리원", app.center_use ? app.center_use + (app.center_period ? " · " + app.center_period : "") : ""],
       ["바우처 구분코드", app.voucher_code || "미입력 (나중에 추가 가능)"],
+      ["알게 된 경로", app.referral ? app.referral + (app.referral_detail ? " (" + app.referral_detail + ")" : "") : ""],
       ["남긴 말씀", app.memo], ["접수일시", app.submitted_at ? Care.fmtDate(app.submitted_at) : "미접수"]
     ];
     el("info-kv").innerHTML = rows.map(function (r) {

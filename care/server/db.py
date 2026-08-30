@@ -73,6 +73,18 @@ VOUCHER_CODE_HELP = (
     f"예: {VOUCHER_CODE_EXAMPLE} · 아직 모르시면 비워두고 넘어가셔도 됩니다."
 )
 
+# 다이음 다이렉트를 알게 된 경로 — 어디에 홍보를 더 할지 판단하는 근거가 된다.
+REFERRAL_OPTIONS = [
+    "맘카페·온라인 커뮤니티",
+    "인터넷 검색",
+    "지인 소개",
+    "인스타그램·SNS",
+    "유튜브",
+    "산부인과·산후조리원",
+    "보건소",
+    "기타",
+]
+
 # 산후조리원 이용
 CENTER_USE_OPTIONS = ["이용함", "이용 안 함"]
 CENTER_PERIOD_OPTIONS = ["1주", "2주", "3주", "4주 이상", "미정"]
@@ -161,6 +173,8 @@ CREATE TABLE IF NOT EXISTS applications (
     voucher_code       TEXT NOT NULL DEFAULT '',
     center_use         TEXT NOT NULL DEFAULT '',
     center_period      TEXT NOT NULL DEFAULT '',
+    referral           TEXT NOT NULL DEFAULT '',
+    referral_detail    TEXT NOT NULL DEFAULT '',
     memo               TEXT NOT NULL DEFAULT '',
     consents           TEXT NOT NULL DEFAULT '{}',
     consent_at         TEXT NOT NULL DEFAULT '',
@@ -269,6 +283,8 @@ ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("notifications", "link", "TEXT NOT NULL DEFAULT ''"),
     ("applications", "center_use", "TEXT NOT NULL DEFAULT ''"),
     ("applications", "center_period", "TEXT NOT NULL DEFAULT ''"),
+    ("applications", "referral", "TEXT NOT NULL DEFAULT ''"),
+    ("applications", "referral_detail", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 # 이름이 바뀐 컬럼 — 기존 DB 의 값을 그대로 옮긴다.

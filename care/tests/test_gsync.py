@@ -25,6 +25,7 @@ FORM = {
     "due_date": "2026-10-15", "service_days": 15, "voucher_code": "",
     "center_use": "이용함",
     "center_period": "2주",
+    "referral": "맘카페·온라인 커뮤니티",
     "consents": {"privacy": True, "sensitive": True, "kakao": True, "marketing": False},
     "kakao_friend": True,
 }
@@ -161,6 +162,7 @@ def test_application_creates_sheet_row(setup):
     assert cols["이용예정기간"] == "15일"
     assert cols["미제출서류"].startswith("산모신생아건강관리사 교육수료증")
     assert cols["제출서류"] == ""
+    assert cols["인지경로"] == "맘카페·온라인 커뮤니티"
 
 
 def test_row_is_updated_not_duplicated(setup):
@@ -249,6 +251,7 @@ def test_rejected_document_counts_as_missing_in_sheet(setup):
 
     cols = dict(zip(gsync.APP_HEADER, fake.row_for("신청", code)))
     assert cols["제출서류"] == ""
+    assert cols["인지경로"] == "맘카페·온라인 커뮤니티"
     assert "백일해 예방접종 증명서류" in cols["미제출서류"]
 
 

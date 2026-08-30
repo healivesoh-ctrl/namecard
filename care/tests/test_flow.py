@@ -45,6 +45,7 @@ FORM = {
     "voucher_code": "",
     "center_use": "이용함",
     "center_period": "2주",
+    "referral": "맘카페·온라인 커뮤니티",
     "consents": {"privacy": True, "sensitive": True, "kakao": True, "marketing": False},
     "kakao_friend": True,
 }
@@ -439,3 +440,43 @@ def test_voucher_code_guidance_is_public(client):
     field = next(f for f in info["fields"] if f["key"] == "voucher_code")
     assert field["label"] == "바우처 구분코드" and field["required"] is False
     assert info["center_period_options"] == ["1주", "2주", "3주", "4주 이상", "미정"]
+
+
+def test_referral_is_optional_and_recorded(client):
+    """인지경로는 선택 항목이지만, 고르면 그대로 저장된다."""
+    info = client.get("/api/info").json()
+    assert "맘카페·온라인 커뮤니티" in info["referral_options"]
+    assert "지인 소개" in info["referral_options"]
+    assert next(f for f in info["fields"] if f["key"] == "referral")["required"] is False
+
+    app = client.post("/api/applications", json={**FORM, "referral": "지인 소개", "submit": True}).json()
+    assert app["referral"] == "지인 소개"
+
+    blank = client.post("/api/applications", json={**FORM, "referral": "", "submit": True}).json()
+    assert blank["referral"] == ""      # 답하지 않아도 접수된다
+
+    bad = client.post("/api/applications", json={**FORM, "referral": "텔레파시", "submit": True})
+    assert bad.status_code == 400
+
+
+def test_referral_detail_only_kept_for_other(client):
+    """자유 입력은 '기타'를 골랐을 때만 남긴다."""
+    other = client.post("/api/applications", json={
+        **FORM, "referral": "기타", "referral_detail": "산부인과 대기실 포스터", "submit": True}).json()
+    assert other["referral_detail"] == "산부인과 대기실 포스터"
+
+    named = client.post("/api/applications", json={
+        **FORM, "referral": "유튜브", "referral_detail": "엉뚱한 값", "submit": True}).json()
+    assert named["referral_detail"] == ""
+
+
+def test_admin_sees_referral_breakdown(client):
+    """어디에 홍보를 더 할지 판단할 수 있게 경로별 건수를 집계한다."""
+    for r in ["지인 소개", "지인 소개", "인터넷 검색", ""]:
+        client.post("/api/applications", json={**FORM, "referral": r, "submit": True})
+    referrals = client.get("/api/admin/applications", headers=ADMIN).json()["referrals"]
+    counts = {r["label"]: r["count"] for r in referrals}
+    assert counts["지인 소개"] == 2
+    assert counts["인터넷 검색"] == 1
+    assert counts["응답 없음"] == 1
+    assert referrals[0]["label"] == "지인 소개"      # 많은 순

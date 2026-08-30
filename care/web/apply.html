@@ -88,6 +88,13 @@
           아직 모르시면 비워두고 넘어가셔도 되고, 나중에 추가로 입력하실 수 있습니다.
         </div></label>
 
+      <label class="field"><span class="lbl">다이음 다이렉트를 어떻게 알게 되셨나요?</span>
+        <div class="chips" id="referral-chips"></div>
+        <input type="hidden" name="referral" value="">
+        <input name="referral_detail" class="hidden" maxlength="60"
+               placeholder="어떻게 알게 되셨는지 알려주세요" style="margin-top:8px">
+        <div class="help">더 나은 안내를 준비하는 데 참고합니다. 답하지 않으셔도 접수에는 영향이 없습니다.</div></label>
+
       <label class="field"><span class="lbl">추가로 남길 말씀</span>
         <textarea name="memo" maxlength="1000" placeholder="문의사항이나 참고할 내용이 있으면 적어주세요 (선택)"></textarea></label>
 
@@ -171,6 +178,18 @@
   document.getElementById("period-chips").innerHTML = PERIODS.map(function (v) {
     return '<div class="chip" data-value="' + v + '">' + v + "</div>";
   }).join("");
+  // 인지경로 — "기타"를 고르면 자유 입력칸이 나타난다
+  Care.api("/api/info").then(function (info) {
+    document.getElementById("referral-chips").innerHTML = (info.referral_options || []).map(function (v) {
+      return '<div class="chip" data-value="' + Care.esc(v) + '">' + Care.esc(v) + "</div>";
+    }).join("");
+    bindChips("referral-chips", "referral");
+    document.getElementById("referral-chips").addEventListener("click", function () {
+      form.referral_detail.classList.toggle("hidden", form.referral.value !== "기타");
+      if (form.referral.value !== "기타") form.referral_detail.value = "";
+    });
+  });
+
   bindChips("center-chips", "center_use");
   bindChips("period-chips", "center_period");
   document.getElementById("center-chips").addEventListener("click", function () {
@@ -276,6 +295,8 @@
       voucher_code: form.voucher_code.value.trim(),
       center_use: form.center_use.value,
       center_period: form.center_period.value,
+      referral: form.referral.value,
+      referral_detail: form.referral_detail.value.trim(),
       memo: form.memo.value.trim(),
       consents: readConsents(),
       kakao_friend: document.getElementById("kakao-friend").checked,
@@ -340,6 +361,10 @@
         form.service_days.value = a.service_days || 15;
         selectChip("relation-chips", a.helper_relation || "가족");
         selectChip("days-chips", a.service_days || 15);
+        form.referral.value = a.referral || "";
+        form.referral_detail.value = a.referral_detail || "";
+        selectChip("referral-chips", a.referral || "");
+        form.referral_detail.classList.toggle("hidden", a.referral !== "기타");
         form.center_use.value = a.center_use || "";
         form.center_period.value = a.center_period || "";
         selectChip("center-chips", a.center_use || "");
