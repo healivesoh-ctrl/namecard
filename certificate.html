@@ -331,14 +331,19 @@
             <div class="hint">예: <code>{성명}_보수교육수료증</code> → 강희숙_보수교육수료증.png</div>
           </label>
           <div class="two">
-            <label class="field"><span>직인</span>
-              <div class="row">
+            <label class="field"><span>날인 (직인)</span>
+              <select id="careSealMode">
+                <option value="on">직인 찍어서 발행 (기본)</option>
+                <option value="off">직인 없이 발행 — 인쇄 후 직접 날인</option>
+                <option value="both">두 가지 모두 저장 — 날인본 + 무날인본</option>
+              </select>
+              <div class="row" style="margin-top:8px;">
                 <img id="careSealPreview" class="thumb" alt="" />
-                <button class="sm" id="btnCareSeal">이미지 바꾸기</button>
+                <button class="sm" id="btnCareSeal">직인 이미지 바꾸기</button>
                 <button class="sm ghost" id="btnCareSealReset">기본값</button>
-                <button class="sm ghost" id="btnCareSealNone">없앰</button>
               </div>
               <input type="file" id="careSealFile" accept="image/*" hidden />
+              <div class="hint">무날인본은 파일 이름 뒤에 <code>_무날인</code> 이 붙습니다.</div>
             </label>
             <label class="field"><span>배경 로고 (워터마크)</span>
               <label style="font-size:12.5px;display:flex;align-items:center;gap:6px;padding:9px 0 0;">
@@ -533,9 +538,9 @@ const CARE = {
   info    : { right:510.3, baselines:[262.4, 292.4, 322.4], size:15, maxW:340, ws:0.17 },
   body    : { cx:299.5, baselines:[412.4, 449.9, 487.4], size:15, maxW:400, ws:0.20 },
   date    : { cx:297.7, baseline:581.6, size:15, maxW:300, ws:0.22 },
-  orgLine : { cx:300.6, baseline:665.9, size:20, maxW:430, ws:0.225 },
-  issuer  : { cx:305.7, baseline:697.9, size:20, maxW:260 },
-  seal    : { cx:371.4, cy:691.8, box:51.6 },
+  orgLine : { cx:300.6, baseline:663, size:20, maxW:430, ws:0.225 },
+  issuer  : { cx:305.7, baseline:706, size:20, maxW:260, ls:0.08 },
+  seal    : { cx:377, cy:700, box:51.6 },
   wm      : { x:85.1, y:222.4, w:425.1, h:425.8 },
   color   : "#000000"
 };
@@ -551,7 +556,8 @@ const CARE_DEFAULTS = {
   fixedEdu: "",
   fixedIssue: "",
   filename: "{성명}_보수교육수료증",
-  seal: "",          /* "" = 내장 직인, "none" = 없음, "data:..." = 올린 이미지 */
+  seal: "",          /* "" = 내장 직인, "data:..." = 올린 이미지 */
+  sealMode: "on",    /* on = 찍어서 발행, off = 없이 발행, both = 두 가지 모두 저장 */
   watermark: true
 };
 
@@ -565,6 +571,14 @@ const CARE_DEMO = [
   ["", "김여진", "1979.11.02", "다이음케어 송파지사",   "2026.05.30", "8", "2026.05.30"],
   ["", "김혜미", "1990.07.21", "에이비케어 강남지사",   "2026.06.20", "4", "2026.06.20"]
 ];
+
+/* 이 건을 날인해서 그릴지 — 설정값과, 무날인본으로 따로 그리는 경우를 함께 본다 */
+function careSealVisible(row){
+  if (row && row.__noSeal) return false;
+  const mode = settings.care.sealMode || "on";
+  if (mode === "off") return false;
+  return settings.care.seal !== "none";
+}
 
 /* "2026년  5 월  30 일" 형태로 */
 function careIssueLine(v){
@@ -634,10 +648,12 @@ function drawCareCertificate(ctx, row, scale){
   });
   drawFitted(ctx, fillTemplate(cs.issuer, row), {
     size:CARE.issuer.size, family:CARE_FONT, weight:"700", color:CARE.color,
-    x:CARE.issuer.cx, baseline:CARE.issuer.baseline, maxW:CARE.issuer.maxW
+    x:CARE.issuer.cx, baseline:CARE.issuer.baseline, maxW:CARE.issuer.maxW, letterSpacing:CARE.issuer.ls
   });
 
-  if (images.careSeal) drawContain(ctx, images.careSeal, CARE.seal.cx, CARE.seal.cy, CARE.seal.box, CARE.seal.box);
+  if (images.careSeal && careSealVisible(row)){
+    drawContain(ctx, images.careSeal, CARE.seal.cx, CARE.seal.cy, CARE.seal.box, CARE.seal.box);
+  }
 
   ctx.restore();
 }
@@ -1387,8 +1403,8 @@ function refreshDates(){
   renderTable();
 }
 
-function fileNameFor(row, used){
-  const base = safeName(fillTemplate(doc().filename(), row));
+function fileNameFor(row, used, suffix){
+  const base = safeName(fillTemplate(doc().filename(), row)) + (suffix || "");
   let name = base + ".png";
   let n = 2;
   while (used.has(name)){ name = base + "_" + n + ".png"; n++; }
@@ -1494,6 +1510,17 @@ function saveBlob(blob, filename){
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
+/* 저장할 파일 목록 — '두 가지 모두' 이면 한 사람당 날인본·무날인본 두 개를 만든다 */
+function exportJobs(list){
+  const both = docType === "care" && settings.care.sealMode === "both";
+  const jobs = [];
+  list.forEach((row) => {
+    jobs.push({ row: row, suffix: "" });
+    if (both) jobs.push({ row: Object.assign({}, row, { __noSeal:true }), suffix: "_무날인" });
+  });
+  return jobs;
+}
+
 function selectedRows(){
   const sel = rows.filter((r) => r.checked);
   return sel.length ? sel : [];
@@ -1507,8 +1534,13 @@ const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 
 async function saveOne(row){
   const scale = parseFloat(settings.scale) || 2;
-  const blob = await renderBlob(row, scale);
-  saveBlob(blob, fileNameFor(row, new Set()));
+  const used = new Set();
+  const jobs = exportJobs([row]);
+  for (let i = 0; i < jobs.length; i++){
+    const blob = await renderBlob(jobs[i].row, scale);
+    saveBlob(blob, fileNameFor(jobs[i].row, used, jobs[i].suffix));
+    if (i < jobs.length - 1) await new Promise((r) => setTimeout(r, 350));
+  }
 }
 
 async function saveZip(){
@@ -1521,13 +1553,14 @@ async function saveZip(){
   const scale = parseFloat(settings.scale) || 2;
   const zip = new JSZip();
   const used = new Set();
+  const jobs = exportJobs(list);
   setBusy(true);
   try {
-    for (let i = 0; i < list.length; i++){
-      const blob = await renderBlob(list[i], scale);
-      zip.file(fileNameFor(list[i], used), blob);
-      setProgress(i + 1, list.length);
-      setStatus("jobStatus", "수료증 만드는 중… " + (i + 1) + " / " + list.length);
+    for (let i = 0; i < jobs.length; i++){
+      const blob = await renderBlob(jobs[i].row, scale);
+      zip.file(fileNameFor(jobs[i].row, used, jobs[i].suffix), blob);
+      setProgress(i + 1, jobs.length);
+      setStatus("jobStatus", "수료증 만드는 중… " + (i + 1) + " / " + jobs.length);
       if (i % 3 === 0) await nextFrame();
     }
     setStatus("jobStatus", "압축하는 중…");
@@ -1536,7 +1569,7 @@ async function saveZip(){
     });
     const stamp = new Date();
     saveBlob(out, doc().zipPrefix + "_" + stamp.getFullYear() + pad2(stamp.getMonth() + 1) + pad2(stamp.getDate()) + "_" + list.length + "명.zip");
-    setStatus("jobStatus", list.length + "명분 수료증을 ZIP 파일로 저장했습니다." + blankWarn(list));
+    setStatus("jobStatus", list.length + "명분 수료증 " + jobs.length + "장을 ZIP 파일로 저장했습니다." + blankWarn(list));
   } catch (err){
     setStatus("jobStatus", "저장 중 문제가 생겼습니다: " + err.message, true);
   } finally {
@@ -1548,19 +1581,20 @@ async function saveZip(){
 async function saveEach(){
   const list = selectedRows();
   if (!list.length){ setStatus("jobStatus", "선택된 학생이 없습니다.", true); return; }
-  if (list.length > 20 && !confirm(list.length + "개 파일을 하나씩 내려받습니다.\n브라우저가 \"여러 파일 다운로드\"를 허용할지 물어볼 수 있습니다.\n계속할까요? (ZIP 저장을 권장합니다)")) return;
+  const jobs = exportJobs(list);
+  if (jobs.length > 20 && !confirm(jobs.length + "개 파일을 하나씩 내려받습니다.\n브라우저가 \"여러 파일 다운로드\"를 허용할지 물어볼 수 있습니다.\n계속할까요? (ZIP 저장을 권장합니다)")) return;
   const scale = parseFloat(settings.scale) || 2;
   const used = new Set();
   setBusy(true);
   try {
-    for (let i = 0; i < list.length; i++){
-      const blob = await renderBlob(list[i], scale);
-      saveBlob(blob, fileNameFor(list[i], used));
-      setProgress(i + 1, list.length);
-      setStatus("jobStatus", "저장 중… " + (i + 1) + " / " + list.length);
+    for (let i = 0; i < jobs.length; i++){
+      const blob = await renderBlob(jobs[i].row, scale);
+      saveBlob(blob, fileNameFor(jobs[i].row, used, jobs[i].suffix));
+      setProgress(i + 1, jobs.length);
+      setStatus("jobStatus", "저장 중… " + (i + 1) + " / " + jobs.length);
       await new Promise((r) => setTimeout(r, 250));
     }
-    setStatus("jobStatus", list.length + "개 PNG 파일을 저장했습니다." + blankWarn(list));
+    setStatus("jobStatus", jobs.length + "개 PNG 파일을 저장했습니다." + blankWarn(list));
   } catch (err){
     setStatus("jobStatus", "저장 중 문제가 생겼습니다: " + err.message, true);
   } finally {
@@ -1598,6 +1632,8 @@ function loadSettings(){
     settings = Object.assign({}, DEFAULTS, s || {});
   } catch (e){ settings = Object.assign({}, DEFAULTS); }
   settings.care = Object.assign({}, CARE_DEFAULTS, settings.care || {});
+  /* 예전 버전에서 직인을 '없앰' 으로 저장했다면 새 [날인 없이 발행] 로 옮긴다 */
+  if (settings.care.seal === "none"){ settings.care.seal = ""; settings.care.sealMode = "off"; }
   if (!Array.isArray(settings.presets) || !settings.presets.length){
     settings.presets = BUILTIN_PRESETS.map((p) => Object.assign({}, p));
   }
@@ -1633,8 +1669,9 @@ function settingsToInputs(){
   for (const k in CARE_SETTING_FIELDS) $(CARE_SETTING_FIELDS[k]).value = settings.care[k] == null ? "" : settings.care[k];
   $("careNumberAuto").checked = settings.care.numberAuto !== false;
   $("careWatermark").checked = settings.care.watermark !== false;
-  $("careSealPreview").src = settings.care.seal === "none" ? BLANK : (settings.care.seal || ASSET_CARE_SEAL);
-  $("careSealPreview").style.visibility = settings.care.seal === "none" ? "hidden" : "visible";
+  $("careSealMode").value = settings.care.sealMode || "on";
+  $("careSealPreview").src = settings.care.seal || ASSET_CARE_SEAL;
+  $("careSealPreview").style.opacity = (settings.care.sealMode === "off") ? "0.35" : "1";
   fillPresetSelect();
   $("setAutoPreset").checked = settings.autoPreset !== false;
   $("logoPreview").src = settings.logo === "none" ? BLANK : logoSrcOf(settings.logo, settings.presetId);
@@ -1647,7 +1684,7 @@ async function applyImageSettings(){
   const sealSrc = settings.seal === "none" ? "" : (settings.seal || ASSET_SEAL);
   images.seal = await loadImage(sealSrc).catch(() => null);
   if (!images.careWm) images.careWm = await loadImage(ASSET_CARE_WM).catch(() => null);
-  const careSealSrc = settings.care.seal === "none" ? "" : (settings.care.seal || ASSET_CARE_SEAL);
+  const careSealSrc = settings.care.seal || ASSET_CARE_SEAL;
   images.careSeal = await loadImage(careSealSrc).catch(() => null);
   for (const key in presetImages) delete presetImages[key];
   for (const p of presetList()){
@@ -1801,12 +1838,14 @@ function bind(){
     fr.readAsDataURL(f);
     $("careSealFile").value = "";
   });
-  const careSealSet = async (v) => {
-    settings.care.seal = v; saveSettings(); settingsToInputs();
+  $("btnCareSealReset").addEventListener("click", async () => {
+    settings.care.seal = ""; saveSettings(); settingsToInputs();
     await applyImageSettings(); renderPreview();
-  };
-  $("btnCareSealReset").addEventListener("click", () => careSealSet(""));
-  $("btnCareSealNone").addEventListener("click", () => careSealSet("none"));
+  });
+  $("careSealMode").addEventListener("change", (e) => {
+    settings.care.sealMode = e.target.value;
+    saveSettings(); settingsToInputs(); renderPreview();
+  });
 
   $("btnSample").addEventListener("click", downloadSample);
   $("btnDemo").addEventListener("click", loadDemo);
