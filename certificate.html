@@ -126,7 +126,7 @@
   .progress > i{display:block;height:100%;width:0;background:var(--green-bright);transition:width .2s;}
   .status{font-size:12.5px;color:var(--muted);margin-top:8px;min-height:18px;}
   .status.err{color:var(--danger);font-weight:700;}
-  .thumb{height:38px;border:1px solid var(--line);border-radius:6px;background:#fff;padding:2px;}
+  .thumb{height:38px;max-width:110px;object-fit:contain;border:1px solid var(--line);border-radius:6px;background:#fff;padding:2px;}
   .empty{color:var(--muted);font-size:13px;padding:22px 8px;text-align:center;}
   footer.foot{color:var(--muted);font-size:12px;text-align:center;margin-top:26px;line-height:1.7;}
   code{background:#eef2ef;padding:1px 5px;border-radius:5px;font-size:12px;}
@@ -188,6 +188,27 @@
     <details class="settings" id="settings">
       <summary><span class="step">2</span>공통 설정 · 문구 · 로고</summary>
       <div class="inner">
+        <label class="field"><span>발급 기관 (로고 · 기관명 · 강조색 묶음)</span>
+          <div class="row">
+            <select id="presetSel" style="flex:1;min-width:170px;"></select>
+            <button class="sm" id="btnPresetSave">현재 설정 저장</button>
+            <button class="sm" id="btnPresetNew">＋ 새 기관</button>
+            <button class="sm ghost" id="btnPresetDel">삭제</button>
+          </div>
+          <div class="hint">
+            기관을 고르면 아래 <b>시행기관 문구 · 로고 · 프로그램명 강조색</b>이 한 번에 바뀝니다.
+            새 교육청을 쓰려면 <b>[＋ 새 기관]</b> 으로 이름을 만들고, 문구와 로고를 채운 뒤 <b>[현재 설정 저장]</b> 을 누르세요.
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <label style="font-size:12px;display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="setAutoPreset" /> 명단의 <b>시행기관</b> 열에 맞춰 학생마다 로고·기관명 자동 전환
+            </label>
+            <div class="spacer"></div>
+            <button class="sm ghost" id="btnPresetExport">기관 목록 내보내기</button>
+            <button class="sm ghost" id="btnPresetImport">불러오기</button>
+            <input type="file" id="presetFile" accept=".json,application/json" hidden />
+          </div>
+        </label>
         <div class="two">
           <label class="field"><span>시행기관 (본문에 들어갈 기관명)</span>
             <input type="text" id="setOrg" placeholder="인천광역시교육청" />
@@ -216,9 +237,16 @@
           <label class="field"><span>날짜 표기</span>
             <select id="setDateFmt">
               <option value="dot">2026.08.24</option>
+              <option value="dotspace">2026. 08. 24</option>
               <option value="ko">2026년 8월 24일</option>
               <option value="dash">2026-08-24</option>
               <option value="raw">엑셀에 적힌 그대로</option>
+            </select>
+          </label>
+          <label class="field"><span>프로그램명(따옴표 안) 색</span>
+            <select id="setAccent">
+              <option value="none">본문과 같은 검정</option>
+              <option value="green">초록 강조</option>
             </select>
           </label>
         </div>
@@ -388,6 +416,7 @@ const L = {
 };
 
 const BODY_FONT = '"Noto Sans KR", "Pretendard Variable", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+const ACCENT_GREEN = "#45785f";   /* 도안의 Certificate 제목과 같은 초록 */
 /* k = 기본 크기 배율, s = 굵기 보정(글자 테두리 두께 비율) */
 const NAME_FONTS = {
   brush   : { family:'"Nanum Brush Script", "Nanum Pen Script", cursive', weight:"400", k:1.00, s:0.022 },
@@ -397,7 +426,19 @@ const NAME_FONTS = {
   gothic  : { family:BODY_FONT,                                           weight:"700", k:0.68, s:0 }
 };
 
+/* 기관 프리셋: 로고 · 기관명 · 강조색을 한 묶음으로 저장해 두고 골라 쓴다.
+   logo 값 규칙 — "" = 내장 인천교육청 로고, "none" = 로고 없음, "data:..." = 올린 이미지 */
+const BUILTIN_PRESETS = [
+  { id:"incheon",  name:"인천광역시교육청", org:"인천광역시교육청", logo:"",     accent:"none" },
+  /* 충북은 로고 이미지를 넣을 수 없어 비워 둔다. 한 번 올려 저장하면 그 뒤로는 자동으로 쓰인다. */
+  { id:"chungbuk", name:"충청북도교육청",   org:"충청북도 교육청",  logo:"none", accent:"green", logoPending:true }
+];
+
 const DEFAULTS = {
+  presets: BUILTIN_PRESETS,
+  presetId: "incheon",
+  autoPreset: true,
+  accent: "none",
   org: "인천광역시교육청",
   issuer: "(주) 디에이블 대표 소지영",
   body1: "위 학생은 {기관}에서 실시하는",
@@ -466,6 +507,7 @@ function fmtDate(v, fmt){
   const d = toDate(v);
   if (!d) return String(v).trim();
   if (fmt === "ko")   return d.getFullYear() + "년 " + (d.getMonth() + 1) + "월 " + d.getDate() + "일";
+  if (fmt === "dotspace") return d.getFullYear() + ". " + pad2(d.getMonth() + 1) + ". " + pad2(d.getDate());
   if (fmt === "dash") return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
   return d.getFullYear() + "." + pad2(d.getMonth() + 1) + "." + pad2(d.getDate());
 }
@@ -473,11 +515,14 @@ function safeName(s){
   return String(s).replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, " ").trim().slice(0, 120) || "수료증";
 }
 function fillTemplate(tpl, row){
+  /* 명단의 시행기관이 등록된 기관과 맞으면, 그 기관에 저장된 표기(띄어쓰기 등)를 따른다 */
+  const pre = presetForRow(row);
+  const org = pre ? pre.org : (row.org || settings.org || "");
   return String(tpl)
     .replace(/\{이름\}/g, row.name || "")
     .replace(/\{학교\}/g, row.school || "")
     .replace(/\{과정\}/g, row.program || "")
-    .replace(/\{기관\}/g, row.org || settings.org || "")
+    .replace(/\{기관\}/g, org)
     .replace(/\{날짜\}/g, row.date || "");
 }
 
@@ -592,6 +637,54 @@ function wrapLine(ctx, text, maxW){
   return out;
 }
 
+/* ── 기관 프리셋 ───────────────────────────────── */
+const presetImages = {};
+function logoSrcOf(v){ return v === "none" ? "" : (v || ASSET_LOGO); }
+function presetList(){ return Array.isArray(settings.presets) && settings.presets.length ? settings.presets : BUILTIN_PRESETS; }
+function presetById(id){ return presetList().filter((p) => p.id === id)[0] || presetList()[0]; }
+function normOrg(s){ return String(s == null ? "" : s).replace(/\s+/g, ""); }
+/* 명단의 시행기관 값에 맞는 기관을 찾는다 (띄어쓰기 무시, 앞부분만 맞아도 인정) */
+function presetForRow(row){
+  if (!settings.autoPreset) return null;
+  const key = normOrg(row.org);
+  if (!key) return null;
+  const list = presetList();
+  for (const p of list) if (normOrg(p.org) === key || normOrg(p.name) === key) return p;
+  for (const p of list){
+    const a = normOrg(p.org), b = normOrg(p.name);
+    if ((a && (a.indexOf(key) === 0 || key.indexOf(a) === 0)) || (b && (b.indexOf(key) === 0 || key.indexOf(b) === 0))) return p;
+  }
+  return null;
+}
+
+/* 큰따옴표(“ ”) 안쪽을 다른 색으로 칠하기 위해 줄을 조각으로 나눈다 */
+function quoteSegments(line, state, baseColor, accentColor){
+  const segs = [];
+  let cur = "", color = state.inQuote ? accentColor : baseColor;
+  const flush = () => { if (cur){ segs.push({ text:cur, color:color }); cur = ""; } };
+  for (const ch of Array.from(line)){
+    const isOpen = (ch === "\u201C") || (ch === '"' && !state.inQuote);
+    const isClose = (ch === "\u201D") || (ch === '"' && state.inQuote);
+    if (isOpen && !state.inQuote){ flush(); color = accentColor; state.inQuote = true; cur += ch; continue; }
+    if (isClose && state.inQuote){ cur += ch; flush(); color = baseColor; state.inQuote = false; continue; }
+    cur += ch;
+  }
+  flush();
+  return segs;
+}
+function drawSegments(ctx, segs, cx, y){
+  let total = 0;
+  for (const s of segs) total += ctx.measureText(s.text).width;
+  let x = cx - total / 2;
+  ctx.textAlign = "left";
+  for (const s of segs){
+    ctx.fillStyle = s.color;
+    ctx.fillText(s.text, x, y);
+    x += ctx.measureText(s.text).width;
+  }
+  ctx.textAlign = "center";
+}
+
 function drawContain(ctx, img, cx, cy, maxW, maxH){
   if (!img) return;
   const r = Math.min(maxW / img.width, maxH / img.height);
@@ -600,6 +693,7 @@ function drawContain(ctx, img, cx, cy, maxW, maxH){
 }
 
 function drawCertificate(ctx, row, scale, checked){
+  const preset = presetForRow(row);
   ctx.save();
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.fillStyle = "#ffffff";
@@ -646,7 +740,13 @@ function drawCertificate(ctx, row, scale, checked){
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
   const first = L.body.midline - ((lines.length - 1) * gap) / 2;
-  lines.forEach((line, i) => ctx.fillText(line, L.body.cx, first + i * gap));
+  const accentOn = (preset ? preset.accent : settings.accent) === "green";
+  const quoteState = { inQuote:false };
+  lines.forEach((line, i) => {
+    const y = first + i * gap;
+    if (accentOn) drawSegments(ctx, quoteSegments(line, quoteState, L.body.color, ACCENT_GREEN), L.body.cx, y);
+    else ctx.fillText(line, L.body.cx, y);
+  });
 
   drawFitted(ctx, row.date || "", {
     size:L.date.size, family:BODY_FONT, weight:"400", color:L.date.color,
@@ -658,7 +758,8 @@ function drawCertificate(ctx, row, scale, checked){
     x:L.issuer.right, baseline:L.issuer.baseline, maxW:L.issuer.maxW, align:"right"
   });
 
-  if (images.logo) drawContain(ctx, images.logo, L.logo.x + L.logo.maxW / 2, L.logo.cy, L.logo.maxW, L.logo.maxH);
+  const logoImg = preset ? (presetImages[preset.id] || null) : images.logo;
+  if (logoImg) drawContain(ctx, logoImg, L.logo.x + L.logo.maxW / 2, L.logo.cy, L.logo.maxW, L.logo.maxH);
   if (images.seal) drawContain(ctx, images.seal, L.seal.cx, L.seal.cy, L.seal.box, L.seal.box);
 
   ctx.restore();
@@ -681,8 +782,14 @@ function renderPreview(){
     if (currentRow() !== r) return;      /* 그 사이 다른 학생으로 넘어갔으면 버린다 */
     nameFallbackNote = "";
     drawCertificate(cv.getContext("2d"), r, 1, true);
-    if (nameFallbackNote) setStatus("fontStatus", nameFallbackNote, false);
-    else if ($("fontStatus").textContent.indexOf("손글씨 글꼴에 없는") >= 0) setStatus("fontStatus", "");
+    const pre = presetForRow(r) || presetById(settings.presetId);
+    if (pre && pre.logoPending){
+      setStatus("fontStatus", "‘" + pre.name + "’ 로고가 아직 등록되지 않았습니다. 아래 [공통 설정]에서 로고 이미지를 올린 뒤 [현재 설정 저장]을 눌러 주세요.", true);
+    } else if (nameFallbackNote){
+      setStatus("fontStatus", nameFallbackNote, false);
+    } else if (/손글씨 글꼴에 없는|로고가 아직 등록/.test($("fontStatus").textContent)){
+      setStatus("fontStatus", "");
+    }
   });
 }
 
@@ -974,26 +1081,28 @@ function setBusy(on){
 function downloadSample(){
   if (typeof XLSX === "undefined"){ setStatus("fileStatus", "엑셀 도구를 불러오지 못했습니다.", true); return; }
   const aoa = [
-    ["학교명", "학생이름", "프로그램명", "수료증 발행일"],
-    ["디플랜드초등학교", "김보희", "스마트 3in1 건강교실", "2026.08.24"],
-    ["다이음초등학교", "김여진", "스마트 3in1 건강교실", "2026.08.24"],
-    ["에이비초등학교", "김혜미", "스마트 3in1 건강교실", "2026.08.24"]
+    ["학교명", "학생이름", "프로그램명", "수료증 발행일", "시행기관"],
+    ["디플랜드초등학교", "김보희", "스마트 3in1 건강교실", "2026.08.24", "인천광역시교육청"],
+    ["다이음초등학교", "김여진", "스마트 3in1 건강교실", "2026.08.24", "인천광역시교육청"],
+    ["에이비초등학교", "김혜미", "스마트! 더 건강한 챌린지 교실", "2026.06.17", "충청북도교육청"],
+    ["디플랜드초등학교", "소지영", "스마트! 더 건강한 챌린지 교실", "2026.06.17", "충청북도교육청"]
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch:18 }, { wch:12 }, { wch:26 }, { wch:16 }];
+  ws["!cols"] = [{ wch:18 }, { wch:12 }, { wch:28 }, { wch:16 }, { wch:18 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "명단");
   XLSX.writeFile(wb, "수료증_명단_양식.xlsx");
 }
 
 const DEMO = [
-  ["디플랜드초등학교", "김보희", "스마트 3in1 건강교실", "2026.08.24"],
-  ["다이음초등학교", "김여진", "스마트 3in1 건강교실", "2026.08.24"],
-  ["에이비초등학교", "김혜미", "스마트 3in1 건강교실", "2026.08.24"]
+  ["디플랜드초등학교", "김보희", "스마트 3in1 건강교실", "2026.08.24", "인천광역시교육청"],
+  ["다이음초등학교", "김여진", "스마트 3in1 건강교실", "2026.08.24", "인천광역시교육청"],
+  ["에이비초등학교", "김혜미", "스마트! 더 건강한 챌린지 교실", "2026.06.17", "충청북도교육청"],
+  ["디플랜드초등학교", "소지영", "스마트! 더 건강한 챌린지 교실", "2026.06.17", "충청북도교육청"]
 ];
 function loadDemo(){
   rows = DEMO.map((r) => ({
-    school:r[0], name:r[1], program:r[2], org:"",
+    school:r[0], name:r[1], program:r[2], org:r[4],
     dateRaw:r[3], date:fmtDate(r[3], settings.dateFmt), checked:true
   }));
   cursor = 0;
@@ -1006,7 +1115,7 @@ function loadDemo(){
 const SETTING_FIELDS = {
   org:"setOrg", issuer:"setIssuer", body1:"setBody1", body2:"setBody2",
   nameFont:"setNameFont", dateFmt:"setDateFmt", fixedDate:"setFixedDate",
-  scale:"setScale", filename:"setFilename"
+  scale:"setScale", filename:"setFilename", accent:"setAccent"
 };
 const STORE_KEY = "cert-generator-settings-v1";
 
@@ -1018,23 +1127,112 @@ function loadSettings(){
     const s = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
     settings = Object.assign({}, DEFAULTS, s || {});
   } catch (e){ settings = Object.assign({}, DEFAULTS); }
+  if (!Array.isArray(settings.presets) || !settings.presets.length){
+    settings.presets = BUILTIN_PRESETS.map((p) => Object.assign({}, p));
+  }
+  if (!presetList().some((p) => p.id === settings.presetId)) settings.presetId = presetList()[0].id;
 }
+function fillPresetSelect(){
+  const sel = $("presetSel");
+  sel.innerHTML = "";
+  presetList().forEach((p) => {
+    const o = document.createElement("option");
+    o.value = p.id; o.textContent = p.name;
+    sel.appendChild(o);
+  });
+  sel.value = presetById(settings.presetId).id;
+}
+
 function settingsToInputs(){
   for (const k in SETTING_FIELDS) $(SETTING_FIELDS[k]).value = settings[k] == null ? "" : settings[k];
+  fillPresetSelect();
+  $("setAutoPreset").checked = settings.autoPreset !== false;
   $("logoPreview").src = settings.logo === "none" ? BLANK : (settings.logo || ASSET_LOGO);
   $("logoPreview").style.visibility = settings.logo === "none" ? "hidden" : "visible";
   $("sealPreview").src = settings.seal === "none" ? BLANK : (settings.seal || ASSET_SEAL);
   $("sealPreview").style.visibility = settings.seal === "none" ? "hidden" : "visible";
 }
 async function applyImageSettings(){
-  const logoSrc = settings.logo === "none" ? "" : (settings.logo || ASSET_LOGO);
+  images.logo = await loadImage(logoSrcOf(settings.logo)).catch(() => null);
   const sealSrc = settings.seal === "none" ? "" : (settings.seal || ASSET_SEAL);
-  images.logo = await loadImage(logoSrc).catch(() => null);
   images.seal = await loadImage(sealSrc).catch(() => null);
+  for (const key in presetImages) delete presetImages[key];
+  for (const p of presetList()){
+    presetImages[p.id] = await loadImage(logoSrcOf(p.logo)).catch(() => null);
+  }
 }
 function refreshDates(){
   rows.forEach((r) => { r.date = fmtDate(r.dateRaw !== "" && r.dateRaw != null ? r.dateRaw : settings.fixedDate, settings.dateFmt); });
   renderTable();
+}
+
+/* ── 기관 프리셋 조작 ───────────────────────────── */
+async function applyPreset(id){
+  const p = presetById(id);
+  settings.presetId = p.id;
+  settings.org = p.org;
+  settings.logo = p.logo;
+  settings.accent = p.accent || "none";
+  saveSettings();
+  settingsToInputs();
+  await applyImageSettings();
+  renderPreview();
+}
+async function savePresetFromInputs(){
+  const p = presetById(settings.presetId);
+  p.org = settings.org;
+  p.logo = settings.logo;
+  p.accent = settings.accent;
+  p.logoPending = false;
+  saveSettings();
+  await applyImageSettings();
+  renderPreview();
+  setStatus("fontStatus", "‘" + p.name + "’ 기관 설정을 저장했습니다.");
+}
+async function newPreset(){
+  const name = (prompt("새 기관 이름을 적어 주세요. (예: 충청북도교육청)", "") || "").trim();
+  if (!name) return;
+  const p = {
+    id: "p" + Date.now().toString(36),
+    name: name,
+    org: name,
+    logo: settings.logo === "" ? "none" : settings.logo,   /* 새 기관은 내장 인천 로고를 쓰지 않는다 */
+    accent: settings.accent
+  };
+  settings.presets = presetList().concat([p]);
+  saveSettings();
+  await applyPreset(p.id);
+  setStatus("fontStatus", "‘" + name + "’ 를 만들었습니다. 시행기관 문구를 확인하고 로고 이미지를 올린 뒤 [현재 설정 저장] 을 눌러 주세요.");
+}
+async function deletePreset(){
+  const list = presetList();
+  if (list.length <= 1){ setStatus("fontStatus", "기관은 하나 이상 있어야 합니다.", true); return; }
+  const p = presetById(settings.presetId);
+  if (!confirm("‘" + p.name + "’ 기관 설정을 지울까요?")) return;
+  settings.presets = list.filter((x) => x.id !== p.id);
+  saveSettings();
+  await applyPreset(settings.presets[0].id);
+}
+function exportPresets(){
+  const data = JSON.stringify({ version:1, presets:presetList() }, null, 2);
+  saveBlob(new Blob([data], { type:"application/json" }), "수료증_기관목록.json");
+}
+function importPresets(text){
+  let data;
+  try { data = JSON.parse(text); } catch (e){ setStatus("fontStatus", "기관 목록 파일을 읽지 못했습니다.", true); return null; }
+  const incoming = (data && data.presets) || [];
+  if (!incoming.length){ setStatus("fontStatus", "기관 목록 파일에 기관이 없습니다.", true); return null; }
+  const merged = presetList().slice();
+  incoming.forEach((p) => {
+    if (!p || !p.name) return;
+    const i = merged.findIndex((x) => x.id === p.id || normOrg(x.name) === normOrg(p.name));
+    const item = { id:p.id || ("p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)),
+                   name:p.name, org:p.org || p.name, logo:p.logo || "none", accent:p.accent || "none" };
+    if (i >= 0) merged[i] = item; else merged.push(item);
+  });
+  settings.presets = merged;
+  saveSettings();
+  return incoming.length;
 }
 
 /* ── 글꼴 ─────────────────────────────────────── */
@@ -1150,6 +1348,34 @@ function bind(){
     settings[key] = val; saveSettings(); settingsToInputs();
     await applyImageSettings(); renderPreview();
   };
+  $("presetSel").addEventListener("change", (e) => applyPreset(e.target.value));
+  $("btnPresetSave").addEventListener("click", savePresetFromInputs);
+  $("btnPresetNew").addEventListener("click", newPreset);
+  $("btnPresetDel").addEventListener("click", deletePreset);
+  $("btnPresetExport").addEventListener("click", exportPresets);
+  $("btnPresetImport").addEventListener("click", () => $("presetFile").click());
+  $("presetFile").addEventListener("change", () => {
+    const f = $("presetFile").files[0];
+    if (!f) return;
+    const fr = new FileReader();
+    fr.onload = async () => {
+      const n = importPresets(String(fr.result));
+      if (n){
+        settingsToInputs();
+        await applyImageSettings();
+        renderPreview();
+        setStatus("fontStatus", "기관 " + n + "곳을 불러왔습니다.");
+      }
+    };
+    fr.readAsText(f);
+    $("presetFile").value = "";
+  });
+  $("setAutoPreset").addEventListener("change", (e) => {
+    settings.autoPreset = e.target.checked;
+    saveSettings();
+    renderPreview();
+  });
+
   $("btnLogoReset").addEventListener("click", () => imgSet("logo", ""));
   $("btnLogoNone").addEventListener("click", () => imgSet("logo", "none"));
   $("btnSealReset").addEventListener("click", () => imgSet("seal", ""));
@@ -1157,7 +1383,7 @@ function bind(){
 
   $("btnResetAll").addEventListener("click", async () => {
     if (!confirm("문구 · 글꼴 · 로고 설정을 모두 초기값으로 되돌릴까요?")) return;
-    settings = Object.assign({}, DEFAULTS);
+    settings = Object.assign({}, DEFAULTS, { presets: BUILTIN_PRESETS.map((p) => Object.assign({}, p)) });
     saveSettings(); settingsToInputs();
     await applyImageSettings();
     refreshDates(); renderPreview();
