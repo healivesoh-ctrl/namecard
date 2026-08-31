@@ -213,8 +213,8 @@
           <label class="field"><span>시행기관 (본문에 들어갈 기관명)</span>
             <input type="text" id="setOrg" placeholder="인천광역시교육청" />
           </label>
-          <label class="field"><span>발급기관 · 대표자 (오른쪽 아래)</span>
-            <input type="text" id="setIssuer" placeholder="(주) 디에이블 대표 소지영" />
+          <label class="field"><span>발급기관 문구 (오른쪽 아래, 날인 왼쪽)</span>
+            <input type="text" id="setIssuer" placeholder="(주) 디에이블" />
           </label>
         </div>
         <label class="field"><span>본문 1행</span>
@@ -410,10 +410,11 @@ const L = {
   school : { cx:562.5, baseline:368, size:23.1, maxW:560, color:"#222222" },
   name   : { cx:562,   baseline:472, size:88.5, maxW:600, color:"#222222" },
   body   : { cx:561,   midline:602,  gap:40, size:25.15, maxW:745, color:"#333333" },
+  /* 아래 네 요소는 같은 가로선(글자 중심 y≈702)에 맞춰 놓는다 */
   date   : { cx:549,   baseline:712, size:25.35, maxW:230, color:"#333333" },
-  issuer : { right:997, baseline:709, size:25.15, maxW:300, color:"#333333" },
-  logo   : { x:50,  cy:709, maxW:262, maxH:66 },
-  seal   : { cx:1018, cy:690, box:92 }
+  issuer : { right:958, baseline:712, size:25.15, maxW:300, color:"#333333" },
+  logo   : { x:50,  cy:702, maxW:262, maxH:66 },
+  seal   : { cx:1018, cy:702, box:92 }
 };
 
 const BODY_FONT = '"Noto Sans KR", "Pretendard Variable", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
@@ -440,7 +441,7 @@ const DEFAULTS = {
   autoPreset: true,
   accent: "none",
   org: "인천광역시교육청",
-  issuer: "(주) 디에이블 대표 소지영",
+  issuer: "(주) 디에이블",
   body1: "위 학생은 {기관}에서 실시하는",
   body2: "“{과정}” 과정을 수료하였기에 이 증서를 수여합니다.",
   nameFont: "brush",
@@ -1151,6 +1152,8 @@ function loadSettings(){
     delete p.logoPending;
   });
   if (settings.presetId === "chungbuk" && settings.logo === "none") settings.logo = "";
+  /* 예전 기본 문구(대표자 포함)를 쓰던 브라우저는 새 기본 문구로 맞춘다 */
+  if (settings.issuer === "(주) 디에이블 대표 소지영") settings.issuer = DEFAULTS.issuer;
 }
 function fillPresetSelect(){
   const sel = $("presetSel");
