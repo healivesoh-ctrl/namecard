@@ -81,7 +81,9 @@
 
   <section class="panel">
     <h2>접수 전 준비 서류</h2>
-    <p class="lead">서류가 하나도 준비되지 않아도 <strong>접수는 가능</strong>합니다. 접수 후 부족한 서류만 추가로 올릴 수 있어요.</p>
+    <p class="lead">서류는 <strong>지금 준비하지 않으셔도 됩니다.</strong>
+       접수하시면 다이음에서 <strong>카카오톡으로 서류 올리는 링크</strong>를 보내드립니다.
+       링크를 눌러 준비되는 대로 하나씩 올리시면 됩니다.</p>
     <div class="doc-list" id="doc-list"></div>
     <p class="small muted" style="margin-top:12px">
       PDF 또는 사진(JPG·PNG·HEIC)으로 올릴 수 있으며, 글자가 또렷하게 보이도록 촬영해 주세요.
@@ -102,20 +104,6 @@
       건강검진결과서·예방접종 기록은 <strong>민감정보</strong>로 분류되어 별도 동의를 받습니다.
       동의하지 않으셔도 되지만, 필수 항목에 동의하지 않으면 접수가 진행되지 않습니다.
     </p>
-  </section>
-
-  <section class="panel">
-    <h2>진행 절차</h2>
-    <div class="doc-list">
-      <div class="doc-item"><div class="doc-head"><span class="badge info">1</span><span class="t">온라인 접수 (자동 승인)</span></div>
-        <div class="doc-desc">신청서를 제출하면 접수는 자동으로 승인되고, 곧바로 카카오톡으로 접수번호가 발송됩니다. <strong>이때부터 카톡에서 진행 사항을 조회</strong>하실 수 있습니다. 서류가 없어도 접수 자체는 완료됩니다.</div></div>
-      <div class="doc-item"><div class="doc-head"><span class="badge info">2</span><span class="t">서류 업로드 (나눠서 가능)</span></div>
-        <div class="doc-desc">준비된 서류부터 올려두고, 나머지는 준비되는 대로 추가하면 됩니다. 접수하지 않고 임시저장만 해둘 수도 있습니다.</div></div>
-      <div class="doc-item"><div class="doc-head"><span class="badge warn">3</span><span class="t">다이음 관리자 서류 검토</span></div>
-        <div class="doc-desc">부족한 서류가 있으면 어떤 서류가 왜 부족한지 카카오톡으로 안내드립니다. 메시지의 버튼을 누르면 바로 그 서류를 올리는 화면이 열립니다.</div></div>
-      <div class="doc-item"><div class="doc-head"><span class="badge ok">4</span><span class="t">최종확인 완료</span></div>
-        <div class="doc-desc">확인이 끝나면 알림톡으로 알려드리고, 조회 페이지에서 <strong>접수 → 검토 → 최종확인</strong> 중 어느 단계인지 언제든 볼 수 있습니다. 이후 근로계약과 제공기록지는 오리지널 다이음 시스템에서 이어집니다.</div></div>
-    </div>
   </section>
 
   <!-- 이 브라우저에 기억된 접수 건 -->
@@ -183,12 +171,11 @@
       return '<div class="doc-item"><div class="doc-head"><span class="badge info">' + (i + 1) + '</span>' +
              '<span class="t">' + E(d.label) + '</span>' +
              (d.required ? '<span class="badge">필수</span>' : '<span class="badge">선택</span>') +
-             (d.agency ? '<span class="badge ok">발급 대행 가능</span>' : '') +
+
              '</div><div class="doc-desc">' + E(d.desc) + '</div>' +
              (d.issue_url ? '<div class="file-row"><a class="btn small" target="_blank" rel="noopener" href="' +
                E(d.issue_url) + '">' + E(d.issue_label || "발급 사이트 열기") + ' ↗</a></div>' : '') +
-             (d.agency ? '<div class="doc-desc small" style="margin-top:6px">' +
-               E(info.agency_notice || "") + ' ' + E(info.agency_fee_notice || "") + '</div>' : '') +
+             (d.note ? '<div class="doc-desc small" style="margin-top:6px">' + E(d.note) + '</div>' : '') +
              '</div>';
     }).join("");
   }

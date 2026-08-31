@@ -54,7 +54,14 @@ DOC_TYPES: list[dict] = [
         "required": True,
         "issue_url": "https://crims.police.go.kr/main.do",
         "issue_label": "범죄경력회보서 발급 사이트",
-        "agency": True,
+        "note": "발급 과정에서 본인 확인 통화가 필요합니다. 신청서에 적어주신 "
+                "전화 인증 가능 시간대에 담당자가 연락드립니다.",
+    },
+    {
+        "key": "guardian_none",
+        "label": "후견인부존재확인서",
+        "desc": "후견 개시 사실이 없음을 확인하는 서류입니다.",
+        "required": True,
     },
     {
         "key": "health_checkup",
@@ -70,24 +77,19 @@ DOC_TYPES: list[dict] = [
     },
 ]
 DOC_TYPE_KEYS = {d["key"] for d in DOC_TYPES}
-AGENCY_DOC_KEYS = {d["key"] for d in DOC_TYPES if d.get("agency")}
 
-# 다이음 다이렉트 발급 대행
-AGENCY_FEE = 5000
-# 수수료는 본인 부담 — 급여에서 차감된다. 돈에 관한 안내라 오해가 없게 한 문장으로 못박는다.
-AGENCY_FEE_NOTICE = (
-    "발급 절차 진행 수수료 5,000원은 친정엄마 급여에서 차감되어 정산됩니다. 따로 결제하실 필요는 없습니다."
+# 범죄경력회보서는 발급 과정에서 본인 확인 통화가 필요해, 접수할 때 통화 가능한 시간대를 받아둔다.
+VERIFY_TIME_OPTIONS = [
+    "평일 오전 (9~12시)",
+    "평일 오후 (12~18시)",
+    "평일 저녁 (18~21시)",
+    "주말",
+    "아무 때나 가능",
+]
+VERIFY_TIME_NOTICE = (
+    "범죄경력회보서는 발급 과정에서 본인 확인 통화가 필요합니다. "
+    "전화를 받으실 수 있는 시간대를 알려주세요."
 )
-AGENCY_NOTICE = (
-    "본인 발급이 어려우시면 다이음 다이렉트가 대신 발급해 드립니다. "
-    "휴대폰 본인인증이 필요해 담당자가 전화를 드려야 하므로, 연락 가능한 시간을 알려주세요."
-)
-AGENCY_STATUS_LABELS = {
-    "requested": "발급 신청 접수",
-    "in_progress": "발급 진행중",
-    "done": "발급 완료",
-    "canceled": "취소",
-}
 DOC_LABELS = {d["key"]: d["label"] for d in DOC_TYPES}
 
 # 신청 상태 흐름: draft(임시저장) → received(접수, 자동승인) → reviewing(검토)
@@ -213,6 +215,7 @@ CREATE TABLE IF NOT EXISTS applications (
     center_period      TEXT NOT NULL DEFAULT '',
     referral           TEXT NOT NULL DEFAULT '',
     referral_detail    TEXT NOT NULL DEFAULT '',
+    verify_time        TEXT NOT NULL DEFAULT '',
     memo               TEXT NOT NULL DEFAULT '',
     consents           TEXT NOT NULL DEFAULT '{}',
     consent_at         TEXT NOT NULL DEFAULT '',
@@ -255,19 +258,6 @@ CREATE TABLE IF NOT EXISTS events (
     created_at     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_event_app ON events(application_id);
-
-CREATE TABLE IF NOT EXISTS issue_requests (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
-    doc_type       TEXT NOT NULL,
-    contact_time   TEXT NOT NULL DEFAULT '',
-    memo           TEXT NOT NULL DEFAULT '',
-    status         TEXT NOT NULL DEFAULT 'requested',
-    admin_note     TEXT NOT NULL DEFAULT '',
-    created_at     TEXT NOT NULL,
-    updated_at     TEXT NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS idx_issue_app ON issue_requests(application_id);
 
 CREATE TABLE IF NOT EXISTS notifications (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -336,6 +326,7 @@ ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("applications", "center_period", "TEXT NOT NULL DEFAULT ''"),
     ("applications", "referral", "TEXT NOT NULL DEFAULT ''"),
     ("applications", "referral_detail", "TEXT NOT NULL DEFAULT ''"),
+    ("applications", "verify_time", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 # 이름이 바뀐 컬럼 — 기존 DB 의 값을 그대로 옮긴다.

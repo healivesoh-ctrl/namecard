@@ -21,6 +21,8 @@ FORM = {
     "due_date": "2026-09-20", "service_days": 15, "voucher_code": "",
     "center_use": "이용함",
     "center_period": "2주",
+    "referral": "지인 소개",
+    "verify_time": "평일 오후 (12~18시)",
     "consents": CONSENTS, "kakao_friend": True,
 }
 
@@ -256,7 +258,7 @@ def test_templates_are_listed_for_kakao_approval(client):
     """카카오 템플릿 심사에 올릴 문구를 관리자 화면에서 그대로 확인할 수 있어야 한다."""
     data = client.get("/api/admin/notifications", headers=ADMIN).json()
     keys = {t["key"] for t in data["templates"]}
-    assert keys == {"received", "reviewing", "rejected", "confirmed", "issue_request", "consult"}
+    assert keys == {"received", "reviewing", "rejected", "confirmed", "doc_request", "consult"}
     for t in data["templates"]:
         assert t["body"].startswith("[다이음 다이렉트]") or "[다이음 다이렉트]" in t["body"]
         assert t["when"]
@@ -366,15 +368,21 @@ def test_confirmed_message_invites_keeping_the_channel(client):
     assert "삭제" not in body and "미적용" not in body
 
 
-def test_issue_request_alimtalk_states_contact_time_and_fee(client):
+
+def test_doc_request_alimtalk_carries_the_upload_link(client, monkeypatch):
+    """관리자가 요청하면 신청자는 카톡 버튼만 눌러 그 서류를 올린다."""
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://care.example.kr")
     app = client.post("/api/applications", json={**FORM, "submit": True}).json()
-    client.post(f"/api/applications/{app['code']}/issue-requests?token={app['token']}",
-                json={"doc_type": "criminal_record", "contact_time": "평일 오후 2~5시"})
+    client.post(f"/api/admin/applications/{app['code']}/request-docs", headers=ADMIN, json={
+        "docs": ["criminal_record", "guardian_none"], "message": "두 가지만 먼저 부탁드립니다."})
     _notify()
-    body = client.get(f"/api/admin/notifications?code={app['code']}",
-                      headers=ADMIN).json()["items"][0]["body"]
-    assert "범죄경력회보서 발급 대행 신청이 접수" in body
-    assert "평일 오후 2~5시" in body
-    assert "휴대폰 본인인증" in body
-    assert "5,000원은 친정엄마 급여에서 차감되어 정산" in body
-    assert "따로 결제하실 필요는 없습니다" in body
+    item = client.get(f"/api/admin/notifications?code={app['code']}",
+                      headers=ADMIN).json()["items"][0]
+    assert item["template_key"] == "doc_request"
+    assert "범죄경력회보서, 후견인부존재확인서" in item["body"]
+    assert "두 가지만 먼저 부탁드립니다." in item["body"]
+    assert item["link"].startswith("https://care.example.kr/status.html?code=")
+
+    tpl = next(t for t in client.get("/api/admin/notifications", headers=ADMIN).json()["templates"]
+               if t["key"] == "doc_request")
+    assert tpl["button"] == "서류 올리기"

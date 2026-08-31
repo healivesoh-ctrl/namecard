@@ -80,24 +80,6 @@
   </div>
 </div>
 
-<dialog id="issue-dialog">
-  <h2>다이음 다이렉트 발급 신청</h2>
-  <p class="lead" id="issue-doc-label"></p>
-  <div class="notice info" id="issue-notice"></div>
-  <div class="notice warn" id="issue-fee"></div>
-  <form method="dialog" id="issue-form">
-    <label class="field"><span class="lbl">연락 가능한 시간<em>*</em></span>
-      <input name="contact_time" required maxlength="80" placeholder="예: 평일 오후 2~5시">
-      <div class="help">휴대폰 본인인증이 필요해 담당자가 이 시간대에 전화를 드립니다.</div></label>
-    <label class="field"><span class="lbl">남길 말씀</span>
-      <textarea name="memo" maxlength="300" placeholder="발급이 어려운 이유나 참고할 내용 (선택)"></textarea></label>
-    <div class="btn-row">
-      <button class="primary" type="submit" id="issue-submit">발급 신청하기</button>
-      <button type="button" id="issue-cancel">닫기</button>
-    </div>
-  </form>
-</dialog>
-
 <script src="app.js"></script>
 <script>
 (function () {
@@ -227,24 +209,9 @@
           E(t.issue_url) + '">' + E(t.issue_label || "발급 사이트 열기") + " ↗</a></div>"
         : "";
 
-      // 다이음 다이렉트 발급 대행
-      let agency = "";
-      if (t.agency && !locked) {
-        const open = (app.issue_requests || []).find(function (r) {
-          return r.doc_type === t.key && r.status !== "canceled";
-        });
-        agency = open
-          ? '<div class="file-row"><span class="badge info">발급 대행 ' + E(open.status_label) + "</span>" +
-            '<span class="name small muted">연락 가능 시간: ' + E(open.contact_time) + "</span>" +
-            (open.status === "requested"
-              ? '<button class="small danger" data-cancel-issue="' + open.id + '">신청 취소</button>' : "") +
-            "</div>"
-          : '<div class="file-row"><button class="small" data-issue="' + t.key +
-            '">발급이 어려우신가요? 다이음 다이렉트 발급 신청</button></div>';
-      }
-
       return '<div class="doc-item">' + head + '<div class="doc-desc">' + E(t.desc) + "</div>" +
-             guide + rows + uploader + agency + "</div>";
+             (t.note ? '<div class="doc-desc small">' + E(t.note) + "</div>" : "") +
+             guide + rows + uploader + "</div>";
     }).join("");
 
     el("doc-list").querySelectorAll('input[type=file]').forEach(function (input) {
@@ -252,19 +219,6 @@
         if (!input.files || !input.files[0]) return;
         upload(input.dataset.type, input.files[0], input);
       });
-    });
-    el("doc-list").querySelectorAll("button[data-issue]").forEach(function (btn) {
-      btn.onclick = function () { openIssueDialog(btn.dataset.issue); };
-    });
-    el("doc-list").querySelectorAll("button[data-cancel-issue]").forEach(function (btn) {
-      btn.onclick = function () {
-        if (!confirm("발급 대행 신청을 취소할까요?")) return;
-        btn.disabled = true;
-        Care.api("/api/applications/" + encodeURIComponent(current.code) + "/issue-requests/" +
-                 btn.dataset.cancelIssue + "?token=" + encodeURIComponent(token), { method: "DELETE" })
-          .then(function (app) { Care.toast("신청을 취소했습니다."); show(app); })
-          .catch(function (e) { Care.toast(e.message, true); btn.disabled = false; });
-      };
     });
     el("doc-list").querySelectorAll("button[data-del]").forEach(function (btn) {
       btn.onclick = function () {
@@ -307,6 +261,7 @@
       ["이용예정기간", app.service_days ? app.service_days + (app.service_days >= 25 ? "일 이상" : "일") : ""],
       ["산후조리원", app.center_use ? app.center_use + (app.center_period ? " · " + app.center_period : "") : ""],
       ["바우처 구분코드", app.voucher_code || "미입력 (나중에 추가 가능)"],
+      ["전화 인증 가능 시간", app.verify_time],
       ["알게 된 경로", app.referral ? app.referral + (app.referral_detail ? " (" + app.referral_detail + ")" : "") : ""],
       ["남긴 말씀", app.memo], ["접수일시", app.submitted_at ? Care.fmtDate(app.submitted_at) : "미접수"]
     ];
@@ -351,38 +306,6 @@
       .catch(function (e) { Care.toast(e.message, true); })
       .finally(function () { btn.disabled = false; });
   };
-
-  // 발급 대행 신청 모달
-  const issueDlg = el("issue-dialog");
-  const issueForm = el("issue-form");
-  let issueDocType = "";
-
-  function openIssueDialog(docType) {
-    issueDocType = docType;
-    const t = DOC_TYPES.find(function (x) { return x.key === docType; }) || {};
-    el("issue-doc-label").textContent = t.label + " 발급을 다이음 다이렉트가 대신 진행합니다.";
-    el("issue-notice").textContent = INFO.agency_notice || "";
-    el("issue-fee").innerHTML = "<strong>수수료 안내</strong>" + E(INFO.agency_fee_notice || "");
-    issueForm.reset();
-    issueDlg.showModal();
-  }
-  el("issue-cancel").onclick = function () { issueDlg.close(); };
-  issueForm.addEventListener("submit", function (ev) {
-    ev.preventDefault();
-    const btn = el("issue-submit");
-    btn.disabled = true;
-    Care.api("/api/applications/" + encodeURIComponent(current.code) + "/issue-requests?token=" +
-             encodeURIComponent(token), {
-      method: "POST",
-      body: { doc_type: issueDocType, contact_time: issueForm.contact_time.value,
-              memo: issueForm.memo.value }
-    }).then(function (app) {
-      Care.toast("발급 대행 신청이 접수되었습니다. 담당자가 연락드립니다.");
-      issueDlg.close();
-      show(app);
-    }).catch(function (e) { Care.toast(e.message, true); })
-      .finally(function () { btn.disabled = false; });
-  });
 
   // 조회 폼
   const lookupForm = document.getElementById("lookup-form");

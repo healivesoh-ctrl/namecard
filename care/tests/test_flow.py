@@ -46,6 +46,7 @@ FORM = {
     "center_use": "이용함",
     "center_period": "2주",
     "referral": "맘카페·온라인 커뮤니티",
+    "verify_time": "평일 오후 (12~18시)",
     "consents": {"privacy": True, "sensitive": True, "kakao": True, "marketing": False},
     "kakao_friend": True,
 }
@@ -63,6 +64,7 @@ def test_info_lists_documents_and_fields_before_applying(client):
         "산모신생아건강관리사 교육수료증",
         "아동학대예방교육 수료증",
         "범죄경력회보서",
+        "후견인부존재확인서",
         "건강검진결과서",
         "백일해 예방접종 증명서류",
     ]
@@ -82,7 +84,7 @@ def test_submit_without_any_document_is_auto_approved(client):
     assert app["status_label"] == "접수완료"
     assert app["code"].startswith("DA-")
     assert app["mother_phone"] == "010-1234-5678"  # 연락처 정규화
-    assert len(app["missing_now"]) == 5
+    assert len(app["missing_now"]) == 6
     assert any(e["kind"] == "received" for e in app["events"])
 
 
@@ -218,7 +220,7 @@ def test_reject_then_upload_missing_docs_then_resubmit(client):
     assert "결핵" in seen["admin_message"]
     assert seen["missing_docs"] == ["health_checkup", "pertussis"]
 
-    for doc_type in ("health_checkup", "pertussis"):
+    for doc_type in ("guardian_none", "health_checkup", "pertussis"):
         client.post(
             f"/api/applications/{code}/documents?token={token}",
             data={"doc_type": doc_type},
@@ -293,7 +295,8 @@ def test_admin_document_review_and_file_access(client):
     accepted = client.post(f"/api/admin/documents/{doc_id}/review", headers=ADMIN,
                            json={"status": "accepted"}).json()
     assert accepted["missing_now"] == [
-        "아동학대예방교육 수료증", "범죄경력회보서", "건강검진결과서", "백일해 예방접종 증명서류",
+        "아동학대예방교육 수료증", "범죄경력회보서", "후견인부존재확인서",
+        "건강검진결과서", "백일해 예방접종 증명서류",
     ]
 
 
@@ -483,104 +486,73 @@ def test_admin_sees_referral_breakdown(client):
     assert referrals[0]["label"] == "지인 소개"      # 많은 순
 
 
-# ── 범죄경력회보서 · 발급 대행 ───────────────────────────────
 
-def test_document_guides_point_at_the_issuing_site(client):
-    """발급처를 몰라 접수가 막히지 않도록 안내 링크를 함께 준다."""
+
+# ── 새 프로세스: 관리자가 카톡으로 서류를 요청한다 ──────────
+
+def test_documents_now_six_with_guardian_certificate(client):
     docs = {d["key"]: d for d in client.get("/api/info").json()["documents"]}
-
-    abuse = docs["abuse_prevention"]
-    assert "sll.seoul.go.kr" in abuse["issue_url"]
-    assert "서울시평생학습포털" in abuse["desc"] and "수료증" in abuse["desc"]
-
-    crim = docs["criminal_record"]
-    assert crim["label"] == "범죄경력회보서"
-    assert crim["issue_url"] == "https://crims.police.go.kr/main.do"
-    assert crim["agency"] is True          # 다이음이 대신 발급해 줄 수 있는 서류
-    assert docs["health_checkup"].get("agency") is None
+    assert docs["guardian_none"]["label"] == "후견인부존재확인서"
+    assert docs["guardian_none"]["required"] is True
+    # 범죄경력회보서는 대행이 아니라 본인 확인 통화로 처리한다
+    assert "agency" not in docs["criminal_record"]
+    assert "본인 확인 통화" in docs["criminal_record"]["note"]
 
 
-def test_agency_notice_states_the_fee(client):
+def test_verify_time_is_collected_at_application(client):
     info = client.get("/api/info").json()
-    assert info["agency_docs"] == ["criminal_record"]
-    assert info["agency_fee"] == 5000
-    assert "5,000원" in info["agency_fee_notice"]
-    # 본인 부담(차감)이라는 뜻이 분명해야 한다 — "추가 지급"으로 읽히면 안 된다
-    assert "친정엄마 급여에서 차감" in info["agency_fee_notice"]
-    assert "추가되어 지급" not in info["agency_fee_notice"]
-    assert "연락 가능한 시간" in info["agency_notice"]
+    assert info["verify_time_options"][0] == "평일 오전 (9~12시)"
+    assert "본인 확인 통화" in info["verify_time_notice"]
+    field = next(f for f in info["fields"] if f["key"] == "verify_time")
+    assert field["required"] is True
 
-
-def test_issue_request_needs_contact_time(client):
     app = client.post("/api/applications", json={**FORM, "submit": True}).json()
-    code, token = app["code"], app["token"]
-    res = client.post(f"/api/applications/{code}/issue-requests?token={token}",
-                      json={"doc_type": "criminal_record", "contact_time": ""})
-    assert res.status_code == 400
-    assert "연락 가능한 시간" in res.json()["detail"]
+    assert app["verify_time"] == "평일 오후 (12~18시)"
 
+    blocked = client.post("/api/applications", json={**FORM, "verify_time": "", "submit": True})
+    assert blocked.status_code == 400 and "전화 인증 가능 시간대" in blocked.json()["detail"]
 
-def test_issue_request_flow(client):
-    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
-    code, token = app["code"], app["token"]
-
-    got = client.post(f"/api/applications/{code}/issue-requests?token={token}",
-                      json={"doc_type": "criminal_record", "contact_time": "평일 오후 2~5시",
-                            "memo": "발급 사이트에서 인증이 안 됩니다"}).json()
-    req = got["issue_requests"][0]
-    assert req["doc_label"] == "범죄경력회보서"
-    assert req["contact_time"] == "평일 오후 2~5시"
-    assert req["status_label"] == "발급 신청 접수"
-    assert any("발급 대행을 신청" in e["message"] for e in got["events"])
-
-    # 중복 신청은 막는다
-    dup = client.post(f"/api/applications/{code}/issue-requests?token={token}",
-                      json={"doc_type": "criminal_record", "contact_time": "아무때나"})
-    assert dup.status_code == 409
-
-    # 대행 대상이 아닌 서류는 신청할 수 없다
-    bad = client.post(f"/api/applications/{code}/issue-requests?token={token}",
-                      json={"doc_type": "health_checkup", "contact_time": "오후"})
+    bad = client.post("/api/applications", json={**FORM, "verify_time": "새벽", "submit": True})
     assert bad.status_code == 400
 
 
-def test_issue_request_admin_worklist(client):
+def test_admin_requests_documents_by_kakao(client):
+    """접수 직후 첫 안내도, 이후 보완 요청도 같은 버튼 하나로 보낸다."""
     app = client.post("/api/applications", json={**FORM, "submit": True}).json()
-    client.post(f"/api/applications/{app['code']}/issue-requests?token={app['token']}",
-                json={"doc_type": "criminal_record", "contact_time": "평일 오전"})
+    code = app["code"]
 
-    listed = client.get("/api/admin/issue-requests", headers=ADMIN).json()
-    item = listed["items"][0]
-    assert item["app_code"] == app["code"]
-    assert item["helper_name"] == "이도우미" and item["helper_phone"] == "010-9876-5432"
-    assert item["contact_time"] == "평일 오전"
-    assert listed["counts"]["requested"] == 1
-    assert listed["fee"] == 5000
-
-    client.post(f"/api/admin/issue-requests/{item['id']}", headers=ADMIN,
-                json={"status": "done", "admin_note": "발급 완료해 업로드함"})
-    after = client.get("/api/admin/issue-requests", headers=ADMIN).json()
-    assert after["items"][0]["status_label"] == "발급 완료"
-    assert after["counts"].get("requested", 0) == 0
-
-    detail = client.get(f"/api/admin/applications/{app['code']}", headers=ADMIN).json()
-    assert any("발급 완료" in e["message"] for e in detail["events"])
+    sent = client.post(f"/api/admin/applications/{code}/request-docs", headers=ADMIN, json={
+        "docs": ["criminal_record", "guardian_none"],
+        "message": "두 가지만 먼저 올려주시면 됩니다."}).json()
+    assert sent["missing_doc_labels"] == ["범죄경력회보서", "후견인부존재확인서"]
+    assert any("서류 요청 카톡을 보냈습니다" in e["message"] for e in sent["events"])
+    assert sent["status"] == "received"          # 단계는 그대로 둔다
 
 
-def test_issue_request_cancel(client):
+def test_request_docs_defaults_to_whatever_is_missing(client):
     app = client.post("/api/applications", json={**FORM, "submit": True}).json()
     code, token = app["code"], app["token"]
-    got = client.post(f"/api/applications/{code}/issue-requests?token={token}",
-                      json={"doc_type": "criminal_record", "contact_time": "오후"}).json()
-    rid = got["issue_requests"][0]["id"]
-    after = client.request("DELETE", f"/api/applications/{code}/issue-requests/{rid}?token={token}").json()
-    assert after["issue_requests"][0]["status"] == "canceled"
+    client.post(f"/api/applications/{code}/documents?token={token}",
+                data={"doc_type": "caregiver_cert"},
+                files={"file": ("a.pdf", _pdf(), "application/pdf")})
 
-    # 취소했으면 다시 신청할 수 있다
-    again = client.post(f"/api/applications/{code}/issue-requests?token={token}",
-                        json={"doc_type": "criminal_record", "contact_time": "오전"})
-    assert again.status_code == 200
+    sent = client.post(f"/api/admin/applications/{code}/request-docs",
+                       headers=ADMIN, json={}).json()
+    assert "산모신생아건강관리사 교육수료증" not in sent["missing_doc_labels"]
+    assert len(sent["missing_doc_labels"]) == 5
 
 
-def test_issue_requests_require_admin(client):
-    assert client.get("/api/admin/issue-requests").status_code == 401
+def test_request_docs_when_nothing_is_missing(client):
+    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    code, token = app["code"], app["token"]
+    for d in ("caregiver_cert", "abuse_prevention", "criminal_record",
+              "guardian_none", "health_checkup", "pertussis"):
+        client.post(f"/api/applications/{code}/documents?token={token}",
+                    data={"doc_type": d}, files={"file": (f"{d}.pdf", _pdf(), "application/pdf")})
+    res = client.post(f"/api/admin/applications/{code}/request-docs", headers=ADMIN, json={})
+    assert res.status_code == 400 and "모든 서류가 제출된 상태" in res.json()["detail"]
+
+
+def test_request_docs_requires_admin(client):
+    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    assert client.post(f"/api/admin/applications/{app['code']}/request-docs", json={}).status_code == 401

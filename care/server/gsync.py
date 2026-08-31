@@ -36,7 +36,7 @@ APP_SHEET = "신청"
 APP_HEADER = [
     "접수번호", "상태", "산모이름", "산모연락처", "산후도우미", "도우미연락처",
     "관계", "관계상세", "출산예정일", "이용예정기간", "산후조리원", "조리원기간",
-    "바우처구분코드", "인지경로", "발급대행", "남긴말씀",
+    "바우처구분코드", "인지경로", "전화인증가능시간", "남긴말씀",
     "관리자메시지", "부족서류", "제출서류", "미제출서류", "서류링크",
     "접수일시", "최종확인일시", "최종수정",
 ]
@@ -179,7 +179,7 @@ def application_row(app: dict, docs: list[dict]) -> list:
         app.get("center_use", ""), app.get("center_period", ""),
         app.get("voucher_code", ""),
         (app.get("referral", "") + (f" ({app['referral_detail']})" if app.get("referral_detail") else "")),
-        app.get("agency_summary", ""),
+        app.get("verify_time", ""),
         app.get("memo", ""),
         app.get("admin_message", ""),
         ", ".join(db.DOC_LABELS.get(k, k) for k in app.get("missing_docs", [])),
@@ -198,18 +198,6 @@ def consultation_row(c: dict) -> list:
     ]
 
 
-def _agency_summary(conn, app_id: int) -> str:
-    """진행 중이거나 끝난 발급 대행을 한 칸에 요약한다."""
-    rows = conn.execute(
-        "SELECT doc_type, status FROM issue_requests WHERE application_id=?"
-        " AND status != 'canceled' ORDER BY id", (app_id,)
-    ).fetchall()
-    return ", ".join(
-        f"{db.DOC_LABELS.get(r['doc_type'], r['doc_type'])}({db.AGENCY_STATUS_LABELS.get(r['status'], r['status'])})"
-        for r in rows
-    )
-
-
 def _load_application(conn, code: str) -> tuple[dict, list[dict]] | None:
     row = conn.execute("SELECT * FROM applications WHERE code=?", (code,)).fetchone()
     if row is None:
@@ -220,7 +208,6 @@ def _load_application(conn, code: str) -> tuple[dict, list[dict]] | None:
         app["missing_docs"] = json.loads(app.get("missing_docs") or "[]")
     except json.JSONDecodeError:
         app["missing_docs"] = []
-    app["agency_summary"] = _agency_summary(conn, row["id"])
     docs = [dict(d) for d in conn.execute(
         "SELECT * FROM documents WHERE application_id=? ORDER BY uploaded_at", (row["id"],))]
     return app, docs

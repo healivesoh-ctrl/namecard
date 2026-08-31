@@ -25,7 +25,7 @@ FORM = {
     "due_date": "2026-10-15", "service_days": 15, "voucher_code": "",
     "center_use": "이용함",
     "center_period": "2주",
-    "referral": "맘카페·온라인 커뮤니티",
+    "referral": "맘카페·온라인 커뮤니티", "verify_time": "평일 오후 (12~18시)",
     "consents": {"privacy": True, "sensitive": True, "kakao": True, "marketing": False},
     "kakao_friend": True,
 }

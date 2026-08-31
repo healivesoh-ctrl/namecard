@@ -33,7 +33,6 @@
       <button class="primary" data-tab="apps">신청 관리</button>
       <button data-tab="consults">전화상담</button>
       <button data-tab="pay">메인 화면 설정</button>
-      <button data-tab="issue">발급 대행</button>
       <button data-tab="noti">알림톡</button>
       <button data-tab="sync">구글 시트 연동</button>
     </div>
@@ -84,21 +83,23 @@
         <h3 style="margin:18px 0 8px">카카오채널 · 이벤트</h3>
         <div id="d-kakao"></div>
 
-        <h3 style="margin:18px 0 8px">단계 변경 · 반려</h3>
+        <h3 style="margin:18px 0 8px">서류 요청 · 단계 변경</h3>
         <div class="notice info small">
-          반려하면 신청자 화면에 부족한 서류와 사유가 표시되고, 부족한 서류만 다시 올려 재제출할 수 있습니다.
+          아래에서 필요한 서류를 고르고 <strong>서류 요청 카톡 보내기</strong>를 누르면,
+          신청자에게 <strong>그 서류를 올리는 링크</strong>가 카카오톡으로 발송됩니다.
+          접수 직후 첫 안내도, 이후 보완 요청도 이 버튼 하나로 보냅니다.
         </div>
         <div id="missing-boxes" class="chips" style="margin-bottom:10px"></div>
         <label class="field"><span class="lbl">신청자에게 보낼 메시지</span>
           <textarea id="d-message" maxlength="1000" placeholder="예: 건강검진결과서에 결핵 검사 항목이 보이지 않습니다. 해당 항목이 포함된 결과서를 다시 올려주세요."></textarea></label>
+        <div class="btn-row" style="margin-bottom:10px">
+          <button class="primary" id="btn-request-docs">서류 요청 카톡 보내기</button>
+        </div>
         <div class="btn-row">
           <button id="btn-reviewing">검토중으로 변경</button>
           <button class="danger" id="btn-reject">부족 서류 반려</button>
           <button class="primary" id="btn-confirm">최종확인 완료</button>
         </div>
-
-        <h3 style="margin:18px 0 8px">서류 발급 대행</h3>
-        <div class="doc-list" id="d-issue"></div>
 
         <h3 style="margin:18px 0 8px">이 건에 발송된 알림톡</h3>
         <div class="doc-list" id="d-noti"></div>
@@ -165,26 +166,6 @@
         </div>
         <div class="btn-row" style="margin-top:16px">
           <button class="primary" id="p-save">저장하고 메인에 반영</button>
-        </div>
-      </section>
-    </section>
-
-    <!-- 발급 대행 -->
-    <section id="tab-issue" class="hidden">
-      <section class="panel">
-        <h2>서류 발급 대행 신청</h2>
-        <p class="lead">본인 발급이 어려워 다이음 다이렉트가 대신 발급하기로 한 건입니다.
-          <strong>휴대폰 본인인증 때문에 알려주신 시간대에 전화를 걸어야 합니다.</strong></p>
-        <div class="notice warn" id="issue-fee-note"></div>
-        <div class="chips" id="issue-counts" style="margin-bottom:12px"></div>
-        <div class="scroll-x">
-          <table class="list">
-            <thead><tr>
-              <th>신청일시</th><th>접수번호</th><th>서류</th><th>산후도우미</th>
-              <th>도우미 연락처</th><th>연락 가능 시간</th><th>남긴 말씀</th><th>상태</th><th>처리</th>
-            </tr></thead>
-            <tbody id="issue-rows"></tbody>
-          </table>
         </div>
       </section>
     </section>
@@ -274,7 +255,6 @@
     loadPay();
     loadBrand();
     loadConsults();
-    loadIssues();
     loadNoti();
     loadSync();
   }
@@ -283,7 +263,6 @@
   const TAB_LOADERS = {
     apps: function () { loadList(); },
     consults: function () { loadConsults(); },
-    issue: function () { loadIssues(); },
     pay: function () { loadPay(); loadBrand(); },
     noti: function () { loadNoti(); },
     sync: function () { loadSync(); }
@@ -293,7 +272,7 @@
     btn.onclick = function () {
       document.querySelectorAll("[data-tab]").forEach(function (b) { b.classList.remove("primary"); });
       btn.classList.add("primary");
-      ["apps", "consults", "issue", "pay", "noti", "sync"].forEach(function (t) {
+      ["apps", "consults", "pay", "noti", "sync"].forEach(function (t) {
         el("tab-" + t).classList.toggle("hidden", t !== btn.dataset.tab);
       });
       // 탭을 열 때마다 최신 상태를 다시 불러온다 (로그인 시점 데이터가 남지 않도록)
@@ -363,6 +342,7 @@
       ["이용예정기간", a.service_days + (a.service_days >= 25 ? "일 이상" : "일")],
       ["산후조리원", a.center_use ? a.center_use + (a.center_period ? " · " + a.center_period : "") : "-"],
       ["바우처 구분코드", a.voucher_code || "미입력"],
+      ["전화 인증 가능 시간", a.verify_time || "-"],
       ["알게 된 경로", a.referral ? a.referral + (a.referral_detail ? " (" + a.referral_detail + ")" : "") : "-"],
       ["남긴 말씀", a.memo], ["접수일시", a.submitted_at ? Care.fmtDate(a.submitted_at) : "미접수"],
       ["최종확인", a.confirmed_at ? Care.fmtDate(a.confirmed_at) : "-"]
@@ -445,16 +425,6 @@
       };
     });
 
-    el("d-issue").innerHTML = (a.issue_requests || []).length
-      ? a.issue_requests.map(function (r) {
-          return '<div class="doc-item"><div class="doc-head"><span class="t">' + E(r.doc_label) + "</span>" +
-            '<span class="badge ' + (r.status === "done" ? "ok" : r.status === "canceled" ? "" : "warn") +
-            '">' + E(r.status_label) + "</span></div>" +
-            '<div class="doc-desc">연락 가능 시간: <strong>' + E(r.contact_time) + "</strong>" +
-            (r.memo ? "<br>" + E(r.memo) : "") + (r.admin_note ? "<br>메모: " + E(r.admin_note) : "") + "</div></div>";
-        }).join("")
-      : '<p class="muted small">발급 대행 신청이 없습니다.</p>';
-
     loadNoti(a.code);
 
     const evs = (a.events || []).slice().reverse();
@@ -486,6 +456,15 @@
       .then(function (updated) { Care.toast("상태를 변경했습니다."); renderDetail(updated); loadList(); })
       .catch(function (e) { Care.toast(e.message, true); });
   }
+  el("btn-request-docs").onclick = function () {
+    if (!current) return;
+    const docs = Array.from(el("missing-boxes").querySelectorAll(".chip.on"))
+      .map(function (c) { return c.dataset.miss; });
+    adminApi("/api/admin/applications/" + encodeURIComponent(current.code) + "/request-docs",
+             { method: "POST", body: { docs: docs, message: el("d-message").value } })
+      .then(function (u) { Care.toast("서류 요청 카톡을 보냈습니다."); renderDetail(u); loadList(); })
+      .catch(function (e) { Care.toast(e.message, true); });
+  };
   el("btn-reviewing").onclick = function () { changeStatus("reviewing"); };
   el("btn-reject").onclick = function () { changeStatus("rejected"); };
   el("btn-confirm").onclick = function () {
@@ -589,42 +568,6 @@
     }}).then(function () { Care.toast("저장했습니다. 메인 화면에 바로 반영됩니다."); loadBrand(); })
       .catch(function (e) { Care.toast(e.message, true); });
   };
-
-  // ── 발급 대행 ──
-  const ISSUE_BADGE = { requested: "warn", in_progress: "info", done: "ok", canceled: "" };
-
-  function loadIssues() {
-    adminApi("/api/admin/issue-requests").then(function (data) {
-      el("issue-fee-note").innerHTML = "<strong>수수료 안내</strong>" + E(data.fee_notice || "");
-      el("issue-counts").innerHTML = Object.keys(data.statuses).map(function (k) {
-        return '<span class="chip">' + E(data.statuses[k]) + " " + (data.counts[k] || 0) + "</span>";
-      }).join("");
-      el("issue-rows").innerHTML = data.items.length ? data.items.map(function (r) {
-        const next = { requested: "in_progress", in_progress: "done" }[r.status];
-        const nextLabel = { requested: "진행중으로", in_progress: "발급 완료로" }[r.status];
-        return "<tr><td class='small'>" + Care.fmtDate(r.created_at) + "</td>" +
-          "<td class='mono small'>" + E(r.app_code) + "</td><td>" + E(r.doc_label) + "</td>" +
-          "<td>" + E(r.helper_name || "-") + "</td><td>" + E(r.helper_phone || "-") + "</td>" +
-          "<td><strong>" + E(r.contact_time) + "</strong></td>" +
-          "<td class='small'>" + E(r.memo || "-") + "</td>" +
-          '<td><span class="badge ' + (ISSUE_BADGE[r.status] || "") + '">' + E(r.status_label) + "</span></td>" +
-          "<td>" + (next ? '<button class="small" data-issue-id="' + r.id + '" data-next="' + next +
-            '">' + nextLabel + "</button>" : "-") + "</td></tr>";
-      }).join("") : '<tr><td colspan="9" class="muted small">발급 대행 신청이 없습니다.</td></tr>';
-
-      el("issue-rows").querySelectorAll("[data-issue-id]").forEach(function (b) {
-        b.onclick = function () {
-          const note = b.dataset.next === "done"
-            ? (prompt("처리 내용을 남겨주세요 (선택)") || "") : "";
-          b.disabled = true;
-          adminApi("/api/admin/issue-requests/" + b.dataset.issueId,
-                   { method: "POST", body: { status: b.dataset.next, admin_note: note } })
-            .then(function () { Care.toast("처리했습니다."); loadIssues(); })
-            .catch(function (e) { Care.toast(e.message, true); b.disabled = false; });
-        };
-      });
-    }).catch(function (e) { Care.toast(e.message, true); });
-  }
 
   // ── 알림톡 ──
   const NOTI_STATUS = { sent: ['ok', '발송됨'], failed: ['bad', '실패'],

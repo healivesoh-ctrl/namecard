@@ -25,7 +25,7 @@
 
     <div class="notice info" id="required-note">
       <strong>필수 입력</strong>
-      산모 이름 · 산모 연락처 · 산후도우미 이름 · 산후도우미 연락처 · 출산예정일 · 산후조리원 이용 여부
+      산모 이름 · 산모 연락처 · 산후도우미 이름 · 산후도우미 연락처 · 출산예정일 · 산후조리원 이용 여부 · 전화 인증 가능 시간대
     </div>
 
     <form id="form">
@@ -80,6 +80,12 @@
         <div class="chips" id="period-chips"></div>
         <input type="hidden" name="center_period" value="">
         <div class="help">기간이 아직 정해지지 않았다면 <strong>미정</strong>을 선택하세요.</div></label>
+
+      <label class="field"><span class="lbl">전화 인증 가능 시간대<em>*</em></span>
+        <div class="chips" id="verify-chips"></div>
+        <input type="hidden" name="verify_time" value="">
+        <div class="help" id="verify-help">범죄경력회보서는 발급 과정에서 본인 확인 통화가 필요합니다.
+          전화를 받으실 수 있는 시간대를 알려주세요.</div></label>
 
       <label class="field"><span class="lbl">바우처 구분코드</span>
         <input name="voucher_code" maxlength="40" placeholder="예: A-통합-1형">
@@ -183,6 +189,11 @@
     document.getElementById("referral-chips").innerHTML = (info.referral_options || []).map(function (v) {
       return '<div class="chip" data-value="' + Care.esc(v) + '">' + Care.esc(v) + "</div>";
     }).join("");
+    document.getElementById("verify-chips").innerHTML = (info.verify_time_options || []).map(function (v) {
+      return '<div class="chip" data-value="' + Care.esc(v) + '">' + Care.esc(v) + "</div>";
+    }).join("");
+    bindChips("verify-chips", "verify_time");
+    if (info.verify_time_notice) document.getElementById("verify-help").textContent = info.verify_time_notice;
     bindChips("referral-chips", "referral");
     document.getElementById("referral-chips").addEventListener("click", function () {
       form.referral_detail.classList.toggle("hidden", form.referral.value !== "기타");
@@ -295,6 +306,7 @@
       voucher_code: form.voucher_code.value.trim(),
       center_use: form.center_use.value,
       center_period: form.center_period.value,
+      verify_time: form.verify_time.value,
       referral: form.referral.value,
       referral_detail: form.referral_detail.value.trim(),
       memo: form.memo.value.trim(),
@@ -361,6 +373,8 @@
         form.service_days.value = a.service_days || 15;
         selectChip("relation-chips", a.helper_relation || "가족");
         selectChip("days-chips", a.service_days || 15);
+        form.verify_time.value = a.verify_time || "";
+        selectChip("verify-chips", a.verify_time || "");
         form.referral.value = a.referral || "";
         form.referral_detail.value = a.referral_detail || "";
         selectChip("referral-chips", a.referral || "");
