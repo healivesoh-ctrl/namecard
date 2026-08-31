@@ -62,6 +62,7 @@ def test_info_lists_documents_and_fields_before_applying(client):
     assert labels == [
         "산모신생아건강관리사 교육수료증",
         "아동학대예방교육 수료증",
+        "범죄경력회보서",
         "건강검진결과서",
         "백일해 예방접종 증명서류",
     ]
@@ -81,7 +82,7 @@ def test_submit_without_any_document_is_auto_approved(client):
     assert app["status_label"] == "접수완료"
     assert app["code"].startswith("DA-")
     assert app["mother_phone"] == "010-1234-5678"  # 연락처 정규화
-    assert len(app["missing_now"]) == 4
+    assert len(app["missing_now"]) == 5
     assert any(e["kind"] == "received" for e in app["events"])
 
 
@@ -193,7 +194,7 @@ def test_reject_then_upload_missing_docs_then_resubmit(client):
     """관리자가 부족 서류를 지정해 반려하면, 신청자는 부족분만 올려 재제출한다."""
     app = client.post("/api/applications", json={**FORM, "submit": True}).json()
     code, token = app["code"], app["token"]
-    for doc_type in ("caregiver_cert", "abuse_prevention"):
+    for doc_type in ("caregiver_cert", "abuse_prevention", "criminal_record"):
         client.post(
             f"/api/applications/{code}/documents?token={token}",
             data={"doc_type": doc_type},
@@ -292,7 +293,7 @@ def test_admin_document_review_and_file_access(client):
     accepted = client.post(f"/api/admin/documents/{doc_id}/review", headers=ADMIN,
                            json={"status": "accepted"}).json()
     assert accepted["missing_now"] == [
-        "아동학대예방교육 수료증", "건강검진결과서", "백일해 예방접종 증명서류",
+        "아동학대예방교육 수료증", "범죄경력회보서", "건강검진결과서", "백일해 예방접종 증명서류",
     ]
 
 
@@ -480,3 +481,104 @@ def test_admin_sees_referral_breakdown(client):
     assert counts["인터넷 검색"] == 1
     assert counts["응답 없음"] == 1
     assert referrals[0]["label"] == "지인 소개"      # 많은 순
+
+
+# ── 범죄경력회보서 · 발급 대행 ───────────────────────────────
+
+def test_document_guides_point_at_the_issuing_site(client):
+    """발급처를 몰라 접수가 막히지 않도록 안내 링크를 함께 준다."""
+    docs = {d["key"]: d for d in client.get("/api/info").json()["documents"]}
+
+    abuse = docs["abuse_prevention"]
+    assert "sll.seoul.go.kr" in abuse["issue_url"]
+    assert "서울시평생학습포털" in abuse["desc"] and "수료증" in abuse["desc"]
+
+    crim = docs["criminal_record"]
+    assert crim["label"] == "범죄경력회보서"
+    assert crim["issue_url"] == "https://crims.police.go.kr/main.do"
+    assert crim["agency"] is True          # 다이음이 대신 발급해 줄 수 있는 서류
+    assert docs["health_checkup"].get("agency") is None
+
+
+def test_agency_notice_states_the_fee(client):
+    info = client.get("/api/info").json()
+    assert info["agency_docs"] == ["criminal_record"]
+    assert info["agency_fee"] == 5000
+    assert "5,000원" in info["agency_fee_notice"]
+    assert "친정엄마 급여에 추가되어 지급" in info["agency_fee_notice"]
+    assert "연락 가능한 시간" in info["agency_notice"]
+
+
+def test_issue_request_needs_contact_time(client):
+    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    code, token = app["code"], app["token"]
+    res = client.post(f"/api/applications/{code}/issue-requests?token={token}",
+                      json={"doc_type": "criminal_record", "contact_time": ""})
+    assert res.status_code == 400
+    assert "연락 가능한 시간" in res.json()["detail"]
+
+
+def test_issue_request_flow(client):
+    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    code, token = app["code"], app["token"]
+
+    got = client.post(f"/api/applications/{code}/issue-requests?token={token}",
+                      json={"doc_type": "criminal_record", "contact_time": "평일 오후 2~5시",
+                            "memo": "발급 사이트에서 인증이 안 됩니다"}).json()
+    req = got["issue_requests"][0]
+    assert req["doc_label"] == "범죄경력회보서"
+    assert req["contact_time"] == "평일 오후 2~5시"
+    assert req["status_label"] == "발급 신청 접수"
+    assert any("발급 대행을 신청" in e["message"] for e in got["events"])
+
+    # 중복 신청은 막는다
+    dup = client.post(f"/api/applications/{code}/issue-requests?token={token}",
+                      json={"doc_type": "criminal_record", "contact_time": "아무때나"})
+    assert dup.status_code == 409
+
+    # 대행 대상이 아닌 서류는 신청할 수 없다
+    bad = client.post(f"/api/applications/{code}/issue-requests?token={token}",
+                      json={"doc_type": "health_checkup", "contact_time": "오후"})
+    assert bad.status_code == 400
+
+
+def test_issue_request_admin_worklist(client):
+    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    client.post(f"/api/applications/{app['code']}/issue-requests?token={app['token']}",
+                json={"doc_type": "criminal_record", "contact_time": "평일 오전"})
+
+    listed = client.get("/api/admin/issue-requests", headers=ADMIN).json()
+    item = listed["items"][0]
+    assert item["app_code"] == app["code"]
+    assert item["helper_name"] == "이도우미" and item["helper_phone"] == "010-9876-5432"
+    assert item["contact_time"] == "평일 오전"
+    assert listed["counts"]["requested"] == 1
+    assert listed["fee"] == 5000
+
+    client.post(f"/api/admin/issue-requests/{item['id']}", headers=ADMIN,
+                json={"status": "done", "admin_note": "발급 완료해 업로드함"})
+    after = client.get("/api/admin/issue-requests", headers=ADMIN).json()
+    assert after["items"][0]["status_label"] == "발급 완료"
+    assert after["counts"].get("requested", 0) == 0
+
+    detail = client.get(f"/api/admin/applications/{app['code']}", headers=ADMIN).json()
+    assert any("발급 완료" in e["message"] for e in detail["events"])
+
+
+def test_issue_request_cancel(client):
+    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    code, token = app["code"], app["token"]
+    got = client.post(f"/api/applications/{code}/issue-requests?token={token}",
+                      json={"doc_type": "criminal_record", "contact_time": "오후"}).json()
+    rid = got["issue_requests"][0]["id"]
+    after = client.request("DELETE", f"/api/applications/{code}/issue-requests/{rid}?token={token}").json()
+    assert after["issue_requests"][0]["status"] == "canceled"
+
+    # 취소했으면 다시 신청할 수 있다
+    again = client.post(f"/api/applications/{code}/issue-requests?token={token}",
+                        json={"doc_type": "criminal_record", "contact_time": "오전"})
+    assert again.status_code == 200
+
+
+def test_issue_requests_require_admin(client):
+    assert client.get("/api/admin/issue-requests").status_code == 401

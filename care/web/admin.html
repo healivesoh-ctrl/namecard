@@ -33,6 +33,7 @@
       <button class="primary" data-tab="apps">신청 관리</button>
       <button data-tab="consults">전화상담</button>
       <button data-tab="pay">메인 화면 설정</button>
+      <button data-tab="issue">발급 대행</button>
       <button data-tab="noti">알림톡</button>
       <button data-tab="sync">구글 시트 연동</button>
     </div>
@@ -95,6 +96,9 @@
           <button class="danger" id="btn-reject">부족 서류 반려</button>
           <button class="primary" id="btn-confirm">최종확인 완료</button>
         </div>
+
+        <h3 style="margin:18px 0 8px">서류 발급 대행</h3>
+        <div class="doc-list" id="d-issue"></div>
 
         <h3 style="margin:18px 0 8px">이 건에 발송된 알림톡</h3>
         <div class="doc-list" id="d-noti"></div>
@@ -161,6 +165,26 @@
         </div>
         <div class="btn-row" style="margin-top:16px">
           <button class="primary" id="p-save">저장하고 메인에 반영</button>
+        </div>
+      </section>
+    </section>
+
+    <!-- 발급 대행 -->
+    <section id="tab-issue" class="hidden">
+      <section class="panel">
+        <h2>서류 발급 대행 신청</h2>
+        <p class="lead">본인 발급이 어려워 다이음 다이렉트가 대신 발급하기로 한 건입니다.
+          <strong>휴대폰 본인인증 때문에 알려주신 시간대에 전화를 걸어야 합니다.</strong></p>
+        <div class="notice warn" id="issue-fee-note"></div>
+        <div class="chips" id="issue-counts" style="margin-bottom:12px"></div>
+        <div class="scroll-x">
+          <table class="list">
+            <thead><tr>
+              <th>신청일시</th><th>접수번호</th><th>서류</th><th>산후도우미</th>
+              <th>도우미 연락처</th><th>연락 가능 시간</th><th>남긴 말씀</th><th>상태</th><th>처리</th>
+            </tr></thead>
+            <tbody id="issue-rows"></tbody>
+          </table>
         </div>
       </section>
     </section>
@@ -250,6 +274,7 @@
     loadPay();
     loadBrand();
     loadConsults();
+    loadIssues();
     loadNoti();
     loadSync();
   }
@@ -258,6 +283,7 @@
   const TAB_LOADERS = {
     apps: function () { loadList(); },
     consults: function () { loadConsults(); },
+    issue: function () { loadIssues(); },
     pay: function () { loadPay(); loadBrand(); },
     noti: function () { loadNoti(); },
     sync: function () { loadSync(); }
@@ -267,7 +293,7 @@
     btn.onclick = function () {
       document.querySelectorAll("[data-tab]").forEach(function (b) { b.classList.remove("primary"); });
       btn.classList.add("primary");
-      ["apps", "consults", "pay", "noti", "sync"].forEach(function (t) {
+      ["apps", "consults", "issue", "pay", "noti", "sync"].forEach(function (t) {
         el("tab-" + t).classList.toggle("hidden", t !== btn.dataset.tab);
       });
       // 탭을 열 때마다 최신 상태를 다시 불러온다 (로그인 시점 데이터가 남지 않도록)
@@ -419,6 +445,16 @@
       };
     });
 
+    el("d-issue").innerHTML = (a.issue_requests || []).length
+      ? a.issue_requests.map(function (r) {
+          return '<div class="doc-item"><div class="doc-head"><span class="t">' + E(r.doc_label) + "</span>" +
+            '<span class="badge ' + (r.status === "done" ? "ok" : r.status === "canceled" ? "" : "warn") +
+            '">' + E(r.status_label) + "</span></div>" +
+            '<div class="doc-desc">연락 가능 시간: <strong>' + E(r.contact_time) + "</strong>" +
+            (r.memo ? "<br>" + E(r.memo) : "") + (r.admin_note ? "<br>메모: " + E(r.admin_note) : "") + "</div></div>";
+        }).join("")
+      : '<p class="muted small">발급 대행 신청이 없습니다.</p>';
+
     loadNoti(a.code);
 
     const evs = (a.events || []).slice().reverse();
@@ -553,6 +589,42 @@
     }}).then(function () { Care.toast("저장했습니다. 메인 화면에 바로 반영됩니다."); loadBrand(); })
       .catch(function (e) { Care.toast(e.message, true); });
   };
+
+  // ── 발급 대행 ──
+  const ISSUE_BADGE = { requested: "warn", in_progress: "info", done: "ok", canceled: "" };
+
+  function loadIssues() {
+    adminApi("/api/admin/issue-requests").then(function (data) {
+      el("issue-fee-note").innerHTML = "<strong>수수료 안내</strong>" + E(data.fee_notice || "");
+      el("issue-counts").innerHTML = Object.keys(data.statuses).map(function (k) {
+        return '<span class="chip">' + E(data.statuses[k]) + " " + (data.counts[k] || 0) + "</span>";
+      }).join("");
+      el("issue-rows").innerHTML = data.items.length ? data.items.map(function (r) {
+        const next = { requested: "in_progress", in_progress: "done" }[r.status];
+        const nextLabel = { requested: "진행중으로", in_progress: "발급 완료로" }[r.status];
+        return "<tr><td class='small'>" + Care.fmtDate(r.created_at) + "</td>" +
+          "<td class='mono small'>" + E(r.app_code) + "</td><td>" + E(r.doc_label) + "</td>" +
+          "<td>" + E(r.helper_name || "-") + "</td><td>" + E(r.helper_phone || "-") + "</td>" +
+          "<td><strong>" + E(r.contact_time) + "</strong></td>" +
+          "<td class='small'>" + E(r.memo || "-") + "</td>" +
+          '<td><span class="badge ' + (ISSUE_BADGE[r.status] || "") + '">' + E(r.status_label) + "</span></td>" +
+          "<td>" + (next ? '<button class="small" data-issue-id="' + r.id + '" data-next="' + next +
+            '">' + nextLabel + "</button>" : "-") + "</td></tr>";
+      }).join("") : '<tr><td colspan="9" class="muted small">발급 대행 신청이 없습니다.</td></tr>';
+
+      el("issue-rows").querySelectorAll("[data-issue-id]").forEach(function (b) {
+        b.onclick = function () {
+          const note = b.dataset.next === "done"
+            ? (prompt("처리 내용을 남겨주세요 (선택)") || "") : "";
+          b.disabled = true;
+          adminApi("/api/admin/issue-requests/" + b.dataset.issueId,
+                   { method: "POST", body: { status: b.dataset.next, admin_note: note } })
+            .then(function () { Care.toast("처리했습니다."); loadIssues(); })
+            .catch(function (e) { Care.toast(e.message, true); b.disabled = false; });
+        };
+      });
+    }).catch(function (e) { Care.toast(e.message, true); });
+  }
 
   // ── 알림톡 ──
   const NOTI_STATUS = { sent: ['ok', '발송됨'], failed: ['bad', '실패'],

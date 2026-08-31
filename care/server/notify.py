@@ -84,6 +84,19 @@ TEMPLATES: dict[str, dict] = {
         ),
         "button": "접수 내용 다시 보기",
     },
+    "issue_request": {
+        "title": "서류 발급 대행 신청이 접수되었습니다",
+        "when": "본인 발급이 어려운 서류의 발급 대행을 신청했을 때",
+        "body": (
+            "[다이음 다이렉트] 서류 발급 대행 접수\n\n"
+            "{mother_name} 산모님, {doc_label} 발급 대행 신청이 접수되었습니다.\n"
+            "접수번호: {code}\n"
+            "알려주신 연락 가능 시간: {contact_time}\n\n"
+            "휴대폰 본인인증이 필요해 담당자가 그 시간대에 전화를 드립니다.\n"
+            "발급 절차 진행 수수료 5,000원이 친정엄마 급여에 추가되어 지급됩니다."
+        ),
+        "button": "진행상황 확인하기",
+    },
     "consult": {
         "title": "전화상담 신청이 접수되었습니다",
         "when": "전화상담을 신청했을 때",
@@ -277,6 +290,14 @@ def queue_status_change(conn, app: dict, missing_labels: list[str]) -> int | Non
     nid = _record(conn, app.get("id"), key, app.get("mother_phone", ""),
                   _application_values(app, missing_labels))
     return nid
+
+
+def queue_issue_request(conn, app: dict, doc_label: str, contact_time: str) -> int:
+    return _record(conn, app.get("id"), "issue_request", app.get("mother_phone", ""), {
+        "link": status_link(app.get("code", ""), app.get("token", "")),
+        "code": app.get("code", ""), "mother_name": app.get("mother_name", ""),
+        "doc_label": doc_label, "contact_time": contact_time,
+    })
 
 
 def queue_consultation(conn, c: dict) -> int:

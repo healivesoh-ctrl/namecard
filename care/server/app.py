@@ -114,6 +114,19 @@ def _docs_of(conn, app_id: int) -> list[dict]:
     return out
 
 
+def _issue_requests_of(conn, app_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM issue_requests WHERE application_id=? ORDER BY id DESC", (app_id,)
+    ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["doc_label"] = db.DOC_LABELS.get(d["doc_type"], d["doc_type"])
+        d["status_label"] = db.AGENCY_STATUS_LABELS.get(d["status"], d["status"])
+        out.append(d)
+    return out
+
+
 def _events_of(conn, app_id: int) -> list[dict]:
     rows = conn.execute(
         "SELECT kind, message, actor, created_at FROM events WHERE application_id=? ORDER BY id",
@@ -141,6 +154,7 @@ def _detail(conn, row) -> dict:
     data["documents"] = docs
     data["missing_now"] = [db.DOC_LABELS[k] for k in _missing_doc_types(docs)]
     data["events"] = _events_of(conn, row["id"])
+    data["issue_requests"] = _issue_requests_of(conn, row["id"])
     return data
 
 
@@ -275,6 +289,10 @@ def info():
              "note": "더 나은 안내를 준비하는 데 참고합니다. 답하지 않으셔도 접수에는 영향이 없습니다."},
         ],
         "referral_options": db.REFERRAL_OPTIONS,
+        "agency_docs": sorted(db.AGENCY_DOC_KEYS),
+        "agency_notice": db.AGENCY_NOTICE,
+        "agency_fee": db.AGENCY_FEE,
+        "agency_fee_notice": db.AGENCY_FEE_NOTICE,
         "voucher_code_example": db.VOUCHER_CODE_EXAMPLE,
         "voucher_code_help": db.VOUCHER_CODE_HELP,
         "center_use_options": db.CENTER_USE_OPTIONS,
@@ -527,6 +545,72 @@ def get_document_file(code: str, doc_id: int, token: str = Query(default="")):
     with db.db() as conn:
         row = _fetch_by_token(conn, code, token)
         return _serve_document(conn, row, doc_id)
+
+
+# ── 발급 대행 신청 ───────────────────────────────────────────
+
+class IssueRequestIn(BaseModel):
+    doc_type: str
+    contact_time: str = Field(default="", max_length=80)
+    memo: str = Field(default="", max_length=300)
+
+
+@app.post("/api/applications/{code}/issue-requests")
+def create_issue_request(code: str, payload: IssueRequestIn, token: str = Query(default="")):
+    """본인 발급이 어려운 서류를 다이음 다이렉트가 대신 발급해 달라고 신청한다.
+
+    휴대폰 본인인증 때문에 담당자가 전화를 걸어야 하므로 연락 가능 시간을 함께 받는다.
+    """
+    if payload.doc_type not in db.AGENCY_DOC_KEYS:
+        raise HTTPException(400, "이 서류는 발급 대행 대상이 아닙니다.")
+    if not payload.contact_time.strip():
+        raise HTTPException(400, "휴대폰 본인인증을 위해 연락 가능한 시간을 알려주세요.")
+    with db.db() as conn:
+        row = _fetch_by_token(conn, code, token)
+        already = conn.execute(
+            "SELECT 1 FROM issue_requests WHERE application_id=? AND doc_type=?"
+            " AND status IN ('requested','in_progress')",
+            (row["id"], payload.doc_type),
+        ).fetchone()
+        if already:
+            raise HTTPException(409, "이미 발급 대행을 신청하셨습니다. 담당자가 곧 연락드립니다.")
+        label = db.DOC_LABELS[payload.doc_type]
+        conn.execute(
+            "INSERT INTO issue_requests(application_id, doc_type, contact_time, memo, created_at)"
+            " VALUES(?,?,?,?,?)",
+            (row["id"], payload.doc_type, payload.contact_time.strip(), payload.memo.strip(), db.now()),
+        )
+        db.add_event(conn, row["id"], "issue_request",
+                     f"{label} 발급 대행을 신청했습니다. (연락 가능 시간: {payload.contact_time.strip()})",
+                     actor="신청자")
+        row = conn.execute("SELECT * FROM applications WHERE id=?", (row["id"],)).fetchone()
+        detail = _detail(conn, row)
+        notif = notify.queue_issue_request(conn, dict(row), label, payload.contact_time.strip())
+    notify.dispatch(notif)
+    gsync.queue_application(row["code"])
+    return detail
+
+
+@app.delete("/api/applications/{code}/issue-requests/{rid}")
+def cancel_issue_request(code: str, rid: int, token: str = Query(default="")):
+    with db.db() as conn:
+        row = _fetch_by_token(conn, code, token)
+        req = conn.execute(
+            "SELECT * FROM issue_requests WHERE id=? AND application_id=?", (rid, row["id"])
+        ).fetchone()
+        if req is None:
+            raise HTTPException(404, "발급 대행 신청을 찾을 수 없습니다.")
+        if req["status"] in ("done", "canceled"):
+            raise HTTPException(409, "이미 처리된 신청은 취소할 수 없습니다.")
+        conn.execute("UPDATE issue_requests SET status='canceled', updated_at=? WHERE id=?",
+                     (db.now(), rid))
+        db.add_event(conn, row["id"], "issue_request",
+                     f"{db.DOC_LABELS.get(req['doc_type'], '')} 발급 대행 신청을 취소했습니다.",
+                     actor="신청자")
+        row = conn.execute("SELECT * FROM applications WHERE id=?", (row["id"],)).fetchone()
+        detail = _detail(conn, row)
+    gsync.queue_application(row["code"])
+    return detail
 
 
 # ── 전화상담 신청 ────────────────────────────────────────────
@@ -786,6 +870,56 @@ def admin_set_kakao(code: str, payload: KakaoIn, _: str = Depends(require_admin)
         detail = _detail(conn, row)
     gsync.queue_application(row["code"])
     return detail
+
+
+@app.get("/api/admin/issue-requests")
+def admin_issue_requests(status: str = Query(default=""), _: str = Depends(require_admin)):
+    """발급 대행 작업 목록. 담당자가 전화를 걸어 처리할 순서를 본다."""
+    sql = ("SELECT r.*, a.code AS app_code, a.helper_name, a.helper_phone, a.mother_name"
+           " FROM issue_requests r JOIN applications a ON a.id = r.application_id")
+    args: list = []
+    if status:
+        sql += " WHERE r.status = ?"
+        args.append(status)
+    sql += " ORDER BY r.id DESC LIMIT 200"
+    with db.db() as conn:
+        rows = [dict(r) for r in conn.execute(sql, args)]
+        counts = {
+            r["status"]: r["n"]
+            for r in conn.execute("SELECT status, COUNT(*) AS n FROM issue_requests GROUP BY status")
+        }
+    for r in rows:
+        r["doc_label"] = db.DOC_LABELS.get(r["doc_type"], r["doc_type"])
+        r["status_label"] = db.AGENCY_STATUS_LABELS.get(r["status"], r["status"])
+    return {"items": rows, "counts": counts, "statuses": db.AGENCY_STATUS_LABELS,
+            "fee": db.AGENCY_FEE, "fee_notice": db.AGENCY_FEE_NOTICE}
+
+
+class IssueUpdateIn(BaseModel):
+    status: str
+    admin_note: str = Field(default="", max_length=300)
+
+
+@app.post("/api/admin/issue-requests/{rid}")
+def admin_update_issue_request(rid: int, payload: IssueUpdateIn, _: str = Depends(require_admin)):
+    if payload.status not in db.AGENCY_STATUS_LABELS:
+        raise HTTPException(400, "알 수 없는 상태입니다.")
+    with db.db() as conn:
+        req = conn.execute("SELECT * FROM issue_requests WHERE id=?", (rid,)).fetchone()
+        if req is None:
+            raise HTTPException(404, "발급 대행 신청을 찾을 수 없습니다.")
+        conn.execute(
+            "UPDATE issue_requests SET status=?, admin_note=?, updated_at=? WHERE id=?",
+            (payload.status, payload.admin_note.strip(), db.now(), rid),
+        )
+        label = db.DOC_LABELS.get(req["doc_type"], req["doc_type"])
+        db.add_event(conn, req["application_id"], "issue_request",
+                     f"{label} 발급 대행 — {db.AGENCY_STATUS_LABELS[payload.status]}"
+                     + (f": {payload.admin_note.strip()}" if payload.admin_note.strip() else ""),
+                     actor="다이음 관리자")
+        row = conn.execute("SELECT code FROM applications WHERE id=?", (req["application_id"],)).fetchone()
+    gsync.queue_application(row["code"])
+    return {"ok": True}
 
 
 @app.get("/api/admin/notifications")

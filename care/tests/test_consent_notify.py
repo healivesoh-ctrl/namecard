@@ -256,7 +256,7 @@ def test_templates_are_listed_for_kakao_approval(client):
     """카카오 템플릿 심사에 올릴 문구를 관리자 화면에서 그대로 확인할 수 있어야 한다."""
     data = client.get("/api/admin/notifications", headers=ADMIN).json()
     keys = {t["key"] for t in data["templates"]}
-    assert keys == {"received", "reviewing", "rejected", "confirmed", "consult"}
+    assert keys == {"received", "reviewing", "rejected", "confirmed", "issue_request", "consult"}
     for t in data["templates"]:
         assert t["body"].startswith("[다이음 다이렉트]") or "[다이음 다이렉트]" in t["body"]
         assert t["when"]
@@ -364,3 +364,16 @@ def test_confirmed_message_invites_keeping_the_channel(client):
                       headers=ADMIN).json()["items"][0]["body"]
     assert "채널은 그대로 두시면" in body
     assert "삭제" not in body and "미적용" not in body
+
+
+def test_issue_request_alimtalk_states_contact_time_and_fee(client):
+    app = client.post("/api/applications", json={**FORM, "submit": True}).json()
+    client.post(f"/api/applications/{app['code']}/issue-requests?token={app['token']}",
+                json={"doc_type": "criminal_record", "contact_time": "평일 오후 2~5시"})
+    _notify()
+    body = client.get(f"/api/admin/notifications?code={app['code']}",
+                      headers=ADMIN).json()["items"][0]["body"]
+    assert "범죄경력회보서 발급 대행 신청이 접수" in body
+    assert "평일 오후 2~5시" in body
+    assert "휴대폰 본인인증" in body
+    assert "5,000원이 친정엄마 급여에 추가되어 지급" in body

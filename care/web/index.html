@@ -178,12 +178,18 @@
     document.getElementById("pay-note").textContent = pay.note || "";
   }
 
-  function renderDocs(docs) {
+  function renderDocs(docs, info) {
     document.getElementById("doc-list").innerHTML = docs.map(function (d, i) {
       return '<div class="doc-item"><div class="doc-head"><span class="badge info">' + (i + 1) + '</span>' +
              '<span class="t">' + E(d.label) + '</span>' +
              (d.required ? '<span class="badge">필수</span>' : '<span class="badge">선택</span>') +
-             '</div><div class="doc-desc">' + E(d.desc) + '</div></div>';
+             (d.agency ? '<span class="badge ok">발급 대행 가능</span>' : '') +
+             '</div><div class="doc-desc">' + E(d.desc) + '</div>' +
+             (d.issue_url ? '<div class="file-row"><a class="btn small" target="_blank" rel="noopener" href="' +
+               E(d.issue_url) + '">' + E(d.issue_label || "발급 사이트 열기") + ' ↗</a></div>' : '') +
+             (d.agency ? '<div class="doc-desc small" style="margin-top:6px">' +
+               E(info.agency_notice || "") + ' ' + E(info.agency_fee_notice || "") + '</div>' : '') +
+             '</div>';
     }).join("");
   }
 
@@ -238,7 +244,7 @@
   Care.api("/api/info").then(function (info) {
     renderBrand(info.brand || {});
     renderPay(info.pay || {});
-    renderDocs(info.documents || []);
+    renderDocs(info.documents || [], info);
     renderFields(info.fields || []);
     renderConsents(info.consents || []);
   }).catch(function (e) {

@@ -23,6 +23,9 @@ DB_PATH = DATA_DIR / "care.db"
 KST = timezone(timedelta(hours=9))
 
 # 필수 서류 4종 — 화면 안내와 검증이 이 정의 하나를 공유한다.
+# 서류마다 어디서 어떻게 발급받는지(issue_url)를 같이 담는다. 발급처를 몰라
+# 접수가 막히는 일이 가장 많기 때문이다.
+# agency: True 인 서류는 본인 발급이 어려울 때 다이음 다이렉트가 대신 발급해 준다.
 DOC_TYPES: list[dict] = [
     {
         "key": "caregiver_cert",
@@ -33,8 +36,25 @@ DOC_TYPES: list[dict] = [
     {
         "key": "abuse_prevention",
         "label": "아동학대예방교육 수료증",
-        "desc": "온라인 이수도 가능하며, 이수증 PDF 또는 캡처본을 올리면 됩니다.",
+        "desc": "서울시평생학습포털에서 회원가입 후 온라인으로 수강하실 수 있습니다. "
+                "수강을 마치면 수료증을 내려받아 그대로 올려주세요.",
         "required": True,
+        "issue_url": (
+            "https://sll.seoul.go.kr/lms/requestCourse/doDetailInfo.do"
+            "?main_se=lie&course_id=S400620260105102810&class_no=01"
+            "&course_gubun=1&asp_id=ASP00001&simin_yn=N"
+        ),
+        "issue_label": "서울시평생학습포털에서 수강하기",
+    },
+    {
+        "key": "criminal_record",
+        "label": "범죄경력회보서",
+        "desc": "경찰청 범죄경력회보서 발급시스템에서 직접 발급받으실 수 있습니다. "
+                "아동 관련 기관 취업 목적으로 신청하세요.",
+        "required": True,
+        "issue_url": "https://crims.police.go.kr/main.do",
+        "issue_label": "범죄경력회보서 발급 사이트",
+        "agency": True,
     },
     {
         "key": "health_checkup",
@@ -50,6 +70,23 @@ DOC_TYPES: list[dict] = [
     },
 ]
 DOC_TYPE_KEYS = {d["key"] for d in DOC_TYPES}
+AGENCY_DOC_KEYS = {d["key"] for d in DOC_TYPES if d.get("agency")}
+
+# 다이음 다이렉트 발급 대행
+AGENCY_FEE = 5000
+AGENCY_FEE_NOTICE = (
+    "발급 절차 진행 수수료 5,000원이 친정엄마 급여에 추가되어 지급됩니다."
+)
+AGENCY_NOTICE = (
+    "본인 발급이 어려우시면 다이음 다이렉트가 대신 발급해 드립니다. "
+    "휴대폰 본인인증이 필요해 담당자가 전화를 드려야 하므로, 연락 가능한 시간을 알려주세요."
+)
+AGENCY_STATUS_LABELS = {
+    "requested": "발급 신청 접수",
+    "in_progress": "발급 진행중",
+    "done": "발급 완료",
+    "canceled": "취소",
+}
 DOC_LABELS = {d["key"]: d["label"] for d in DOC_TYPES}
 
 # 신청 상태 흐름: draft(임시저장) → received(접수, 자동승인) → reviewing(검토)
@@ -217,6 +254,19 @@ CREATE TABLE IF NOT EXISTS events (
     created_at     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_event_app ON events(application_id);
+
+CREATE TABLE IF NOT EXISTS issue_requests (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    doc_type       TEXT NOT NULL,
+    contact_time   TEXT NOT NULL DEFAULT '',
+    memo           TEXT NOT NULL DEFAULT '',
+    status         TEXT NOT NULL DEFAULT 'requested',
+    admin_note     TEXT NOT NULL DEFAULT '',
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_issue_app ON issue_requests(application_id);
 
 CREATE TABLE IF NOT EXISTS notifications (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
