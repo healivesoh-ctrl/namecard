@@ -376,4 +376,5 @@ def test_issue_request_alimtalk_states_contact_time_and_fee(client):
     assert "범죄경력회보서 발급 대행 신청이 접수" in body
     assert "평일 오후 2~5시" in body
     assert "휴대폰 본인인증" in body
-    assert "5,000원이 친정엄마 급여에 추가되어 지급" in body
+    assert "5,000원은 친정엄마 급여에서 차감되어 정산" in body
+    assert "따로 결제하실 필요는 없습니다" in body

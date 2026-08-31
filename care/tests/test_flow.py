@@ -505,7 +505,9 @@ def test_agency_notice_states_the_fee(client):
     assert info["agency_docs"] == ["criminal_record"]
     assert info["agency_fee"] == 5000
     assert "5,000원" in info["agency_fee_notice"]
-    assert "친정엄마 급여에 추가되어 지급" in info["agency_fee_notice"]
+    # 본인 부담(차감)이라는 뜻이 분명해야 한다 — "추가 지급"으로 읽히면 안 된다
+    assert "친정엄마 급여에서 차감" in info["agency_fee_notice"]
+    assert "추가되어 지급" not in info["agency_fee_notice"]
     assert "연락 가능한 시간" in info["agency_notice"]
 
 
