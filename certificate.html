@@ -159,6 +159,11 @@
         <span>학교명 · 학생이름 · 프로그램명 · 수료증 발행일 열이 있으면 자동으로 인식합니다</span>
       </div>
       <input type="file" id="file" accept=".xlsx,.xls,.csv,.xlsm" hidden />
+      <div class="hint" style="margin-top:10px;line-height:1.6;">
+        ※ 올린 명단은 이 화면에서만 잠깐 쓰이고 저장되지 않습니다.
+        <b>새로고침하거나 창을 닫으면 명단은 사라지며, 다시 접속해 새 파일을 올리면 처음부터 새로 쓸 수 있습니다.</b>
+        (문구 · 로고 · 글꼴 같은 공통 설정은 그대로 남아 있습니다)
+      </div>
       <div class="row" style="margin-top:12px;">
         <button class="sm" id="btnSample">📄 샘플 엑셀 양식 내려받기</button>
         <button class="sm ghost" id="btnDemo">미리보기용 예시 데이터 넣기</button>
@@ -231,7 +236,7 @@
         </div>
         <label class="field"><span>파일 이름 규칙</span>
           <input type="text" id="setFilename" />
-          <div class="hint">예: <code>{학교}_{이름}_수료증</code> → 부마초등학교_지하빈_수료증.png</div>
+          <div class="hint">예: <code>{학교}_{이름}_수료증</code> → 디플랜드초등학교_김보희_수료증.png</div>
         </label>
         <div class="two">
           <label class="field"><span>왼쪽 아래 로고</span>
@@ -406,7 +411,7 @@ const DEFAULTS = {
   seal: ""
 };
 
-const SAMPLE = { school:"부마초등학교", name:"지하빈", program:"스마트 3in1 건강교실", date:"2026.08.24", org:"" };
+const SAMPLE = { school:"디플랜드초등학교", name:"김보희", program:"스마트 3in1 건강교실", date:"2026.08.24", org:"" };
 
 /* ── 상태 ─────────────────────────────────────── */
 let rows = [];
@@ -476,7 +481,67 @@ function fillTemplate(tpl, row){
     .replace(/\{날짜\}/g, row.date || "");
 }
 
+/* ── 글꼴 준비 ─────────────────────────────────── */
+/* 구글 웹글꼴(한글)은 수십 개 조각으로 나뉘어 있어, 그릴 글자를 미리 받아 두지 않으면
+   받아오지 못한 글자만 시스템 글꼴로 튀어 보인다. 그리기 전에 항상 이 함수를 거친다. */
+function primaryFamily(stack){ return String(stack).split(",")[0].trim(); }
+
+let measureCanvas = null;
+function measureCtx(){
+  if (!measureCanvas) measureCanvas = document.createElement("canvas");
+  return measureCanvas.getContext("2d");
+}
+
+let glyphCache = new Map();
+
+async function ensureGlyphs(nameText, bodyText){
+  const nf = NAME_FONTS[settings.nameFont] || NAME_FONTS.brush;
+  const jobs = [];
+  const names = String(nameText || "").replace(/\s+/g, "");
+  const body = String(bodyText || "").replace(/\s+/g, "");
+  if (names) jobs.push(document.fonts.load(nf.weight + ' 96px ' + primaryFamily(nf.family), names).catch(() => null));
+  if (names) jobs.push(document.fonts.load('700 96px "Noto Sans KR"', names).catch(() => null));
+  if (body) jobs.push(document.fonts.load('400 30px "Noto Sans KR"', body).catch(() => null));
+  if (!jobs.length) return;
+  await Promise.all(jobs);
+  glyphCache = new Map();   /* 새 조각이 들어왔으니 판별 결과를 다시 계산한다 */
+}
+
+function rowTexts(list){
+  const names = [], body = [];
+  list.forEach((r) => {
+    names.push(r.name || "");
+    body.push(r.school || "", r.date || "", fillTemplate(settings.body1, r), fillTemplate(settings.body2, r), fillTemplate(settings.issuer, r));
+  });
+  return { names: names.join(""), body: body.join("") };
+}
+
+/* 글꼴에 그 글자가 실제로 들어 있는지 확인 (없는 글꼴로 그린 것과 잉크 모양이 같으면 = 대체됨) */
+function glyphInk(ctx, ch, font){
+  ctx.font = font;
+  const m = ctx.measureText(ch);
+  return [m.actualBoundingBoxLeft, m.actualBoundingBoxRight, m.actualBoundingBoxAscent, m.actualBoundingBoxDescent].join("/");
+}
+function missingGlyphs(text, family, weight){
+  const ctx = measureCtx();
+  const out = [];
+  for (const ch of Array.from(String(text || ""))){
+    if (!ch.trim()) continue;
+    const key = family + "|" + weight + "|" + ch;
+    let ok = glyphCache.get(key);
+    if (ok === undefined){
+      const a = glyphInk(ctx, ch, weight + " 64px " + family);
+      const b = glyphInk(ctx, ch, weight + ' 64px "__no_such_font__"');
+      ok = a !== b;
+      glyphCache.set(key, ok);
+    }
+    if (!ok && out.indexOf(ch) < 0) out.push(ch);
+  }
+  return out;
+}
+
 /* ── 캔버스 그리기 ─────────────────────────────── */
+let nameFallbackNote = "";
 function setFont(ctx, weight, size, family){ ctx.font = weight + " " + size + "px " + family; }
 
 function drawFitted(ctx, text, opt){
@@ -534,7 +599,7 @@ function drawContain(ctx, img, cx, cy, maxW, maxH){
   ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
 }
 
-function drawCertificate(ctx, row, scale){
+function drawCertificate(ctx, row, scale, checked){
   ctx.save();
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.fillStyle = "#ffffff";
@@ -546,7 +611,15 @@ function drawCertificate(ctx, row, scale){
     x:L.school.cx, baseline:L.school.baseline, maxW:L.school.maxW
   });
 
-  const nf = NAME_FONTS[settings.nameFont] || NAME_FONTS.brush;
+  let nf = NAME_FONTS[settings.nameFont] || NAME_FONTS.brush;
+  if (checked && row.name){
+    /* 한 이름 안에서 글꼴이 섞이지 않도록, 없는 글자가 하나라도 있으면 이름 전체를 고딕으로 */
+    const miss = missingGlyphs(row.name, primaryFamily(nf.family), nf.weight);
+    if (miss.length){
+      nameFallbackNote = "‘" + miss.join(", ") + "’ 는 손글씨 글꼴에 없는 글자라 이 이름은 고딕체로 표시됩니다.";
+      nf = NAME_FONTS.gothic;
+    }
+  }
   drawFitted(ctx, row.name || "", {
     size:L.name.size * nf.k, family:nf.family, weight:nf.weight, color:L.name.color,
     x:L.name.cx, baseline:L.name.baseline, maxW:L.name.maxW, stroke:nf.s
@@ -597,12 +670,20 @@ function currentRow(){
 }
 
 function renderPreview(){
-  const cv = $("previewCanvas");
-  drawCertificate(cv.getContext("2d"), currentRow(), 1);
   const r = currentRow();
+  const cv = $("previewCanvas");
+  drawCertificate(cv.getContext("2d"), r, 1, false);
   $("who").textContent = rows.length
     ? (cursor + 1) + " / " + rows.length + " · " + (r.name || "(이름 없음)")
     : "예시 미리보기 — 명단을 올리면 실제 데이터로 바뀝니다";
+  const t = rowTexts([r]);
+  ensureGlyphs(t.names, t.body).then(() => {
+    if (currentRow() !== r) return;      /* 그 사이 다른 학생으로 넘어갔으면 버린다 */
+    nameFallbackNote = "";
+    drawCertificate(cv.getContext("2d"), r, 1, true);
+    if (nameFallbackNote) setStatus("fontStatus", nameFallbackNote, false);
+    else if ($("fontStatus").textContent.indexOf("손글씨 글꼴에 없는") >= 0) setStatus("fontStatus", "");
+  });
 }
 
 /* ── 엑셀 읽기 ─────────────────────────────────── */
@@ -779,11 +860,13 @@ function updateCount(){
 }
 
 /* ── 저장 ─────────────────────────────────────── */
-function renderBlob(row, scale){
+async function renderBlob(row, scale){
+  const t = rowTexts([row]);
+  await ensureGlyphs(t.names, t.body);
   const cv = document.createElement("canvas");
   cv.width = Math.round(W * scale);
   cv.height = Math.round(H * scale);
-  drawCertificate(cv.getContext("2d"), row, scale);
+  drawCertificate(cv.getContext("2d"), row, scale, true);
   return new Promise((res) => cv.toBlob(res, "image/png"));
 }
 function saveBlob(blob, filename){
@@ -892,9 +975,9 @@ function downloadSample(){
   if (typeof XLSX === "undefined"){ setStatus("fileStatus", "엑셀 도구를 불러오지 못했습니다.", true); return; }
   const aoa = [
     ["학교명", "학생이름", "프로그램명", "수료증 발행일"],
-    ["부마초등학교", "지하빈", "스마트 3in1 건강교실", "2026.08.24"],
-    ["부마초등학교", "김서준", "스마트 3in1 건강교실", "2026.08.24"],
-    ["연수초등학교", "이하은", "스마트 3in1 건강교실", "2026.08.24"]
+    ["디플랜드초등학교", "김보희", "스마트 3in1 건강교실", "2026.08.24"],
+    ["다이음초등학교", "김여진", "스마트 3in1 건강교실", "2026.08.24"],
+    ["에이비초등학교", "김혜미", "스마트 3in1 건강교실", "2026.08.24"]
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws["!cols"] = [{ wch:18 }, { wch:12 }, { wch:26 }, { wch:16 }];
@@ -904,10 +987,9 @@ function downloadSample(){
 }
 
 const DEMO = [
-  ["부마초등학교", "지하빈", "스마트 3in1 건강교실", "2026.08.24"],
-  ["부마초등학교", "김서준", "스마트 3in1 건강교실", "2026.08.24"],
-  ["연수초등학교", "이하은", "스마트 3in1 건강교실", "2026.08.24"],
-  ["송도초등학교", "박도윤", "스마트 3in1 건강교실", "2026.08.24"]
+  ["디플랜드초등학교", "김보희", "스마트 3in1 건강교실", "2026.08.24"],
+  ["다이음초등학교", "김여진", "스마트 3in1 건강교실", "2026.08.24"],
+  ["에이비초등학교", "김혜미", "스마트 3in1 건강교실", "2026.08.24"]
 ];
 function loadDemo(){
   rows = DEMO.map((r) => ({
