@@ -1,0 +1,20 @@
+{
+  "domain": "www.kurly.com",
+  "capability": "js_render",
+  "fetcher_type": "DynamicFetcher",
+  "antibot_type": "none",
+  "antibot_strategy": "none",
+  "site_type": "csr",
+  "selectors": {
+    "product_anchor": "a[href^=\"/goods/\"]",
+    "product_card_alt": "[class*=\"ProductCard\"], [class*=\"product-card\"], [data-testid*=\"product\"]"
+  },
+  "pagination": {
+    "type": "url_path",
+    "url_template": "https://www.kurly.com/categories/{category_id}",
+    "notes": "카테고리당 상품은 CSR로 로드되므로 network_idle=True 필요. infinite scroll/lazy load 가능성 있음 — 스크롤로 추가 로드"
+  },
+  "api_endpoints": [],
+  "notes": "Next.js SPA — DynamicFetcher().fetch(url, network_idle=True) 우선. 상품 카드 class name이 자주 빌드 해시로 바뀌므로 (`a[href^=\"/goods/\"]` 같은) 안정 셀렉터 우선 사용, ProductCard/product-card는 fallback. StealthyFetcher가 2차 폴백. Kurly 내부 API(/api/...) 시도해봤지만 CSR 토큰 필요해서 직접 호출보다는 렌더된 DOM 파싱이 빠름. ★ 2026-08-21 — api.kurly.com/robots.txt 는 `User-agent: *` 에 Disallow: / 이고 Allow 목록은 Googlebot 전용이다. 정찰에서 발견되는 /collection/v2/home/sites/market/product-categories/{cat}/products (JSON) 가 정확히 그 안에 든다 — **이 경로로 직행하지 말 것.** www.kurly.com/categories/{cat} 은 `*` 에 Allow 이므로 3단 DynamicFetcher 로 렌더해 DOM 을 파싱한다(이 프로필의 원래 전략과 같다). 상품 카드 텍스트에서 가격을 뽑을 때 판매가/정가 순서가 카드마다 달라 역전될 수 있으니 정가>판매가 교차 검증을 넣을 것. 2026-08-21 카테고리 908 에서 24건 수집 확인.",
+  "last_used": "2026-08-21"
+}

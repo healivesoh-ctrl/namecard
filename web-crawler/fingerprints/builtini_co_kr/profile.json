@@ -1,0 +1,10 @@
+{
+  "domain": "builtini.co.kr",
+  "capability": "api",
+  "fetcher_type": "API_SESSION",
+  "site_type": "api_direct",
+  "api_endpoints": [
+    "GET https://review9.cre.ma/api/builtini.com/reviews"
+  ],
+  "notes": "Crema-powered reviews. API returns reviews array with user_display_name, score, filtered_message, created_at, product_options."
+}

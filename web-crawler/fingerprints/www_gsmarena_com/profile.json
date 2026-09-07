@@ -1,0 +1,29 @@
+{
+  "domain": "www.gsmarena.com",
+  "capability": "static",
+  "fetcher_type": "Fetcher",
+  "antibot_type": "none",
+  "antibot_strategy": "none",
+  "site_type": "static",
+  "selectors": {
+    "list_item": "div.news-item",
+    "title": "h3::text",
+    "link": "a::attr(href)",
+    "excerpt": "p::text",
+    "date_list": "span.meta-item-time::text",
+    "thumb": "img::attr(src)",
+    "body": "#review-body p",
+    "tags": "a[href*=\"sTag\"]::text",
+    "author": "span.reviewer a::text",
+    "date_detail": "span.dtreviewed::text"
+  },
+  "pagination": {
+    "type": "url_param",
+    "param": "iPage",
+    "start": 1,
+    "base_url": "https://www.gsmarena.com/news.php3"
+  },
+  "api_endpoints": [],
+  "notes": "정적 HTML SSR 사이트. 안티봇 없음. 뉴스 목록: news.php3?iPage=N (1페이지는 news.php3, 페이지당 20건). 각 항목은 div.news-item, 썸네일은 그 안 img::attr(src). 상세 본문은 #review-body p(여러 p를 join), 태그 a[href*=sTag], 작성자 span.reviewer a, 작성일 span.dtreviewed. Fetcher 기본 stealthy_headers=True로 정상. 이미지 바이너리도 Fetcher.get(url).body(bytes)로 받으면 됨(requests 불필요). ⚠ scrapling 0.4.8: element.css()는 css_first/storage_args 미지원 — element는 .css(query)가 Selectors 리스트 반환하므로 [0]으로 첫 결과 추출.",
+  "last_used": "2026-06-23"
+}

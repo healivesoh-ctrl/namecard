@@ -1,0 +1,56 @@
+# Output (raw crawl results — large/PII, never commit)
+output/
+crawl_data/
+
+# fingerprints — default-deny.
+# 아래 화이트리스트는 scripts/sync_domain_list.py 가 생성한다. 직접 수정하지 말 것.
+# 배포 대상 판정은 scripts/profile_policy.py 가 한다(사다리 B 도구로 해결한 프로필은 제외).
+fingerprints/**
+!fingerprints/
+!fingerprints/*/
+# BEGIN GENERATED: public-profiles
+!fingerprints/books_toscrape_com/profile.json
+!fingerprints/builtini_co_kr/profile.json
+!fingerprints/celimax_co_kr/profile.json
+!fingerprints/data_seoul_go_kr/profile.json
+!fingerprints/db_itkc_or_kr/profile.json
+!fingerprints/g2b_go_kr/profile.json
+!fingerprints/g2b_go_kr/recipe.md
+!fingerprints/guesskorea_com/profile.json
+!fingerprints/made-in-china_com/profile.json
+!fingerprints/wanted_co_kr/profile.json
+!fingerprints/www_11st_co_kr/profile.json
+!fingerprints/www_fss_or_kr/profile.json
+!fingerprints/www_gsmarena_com/profile.json
+!fingerprints/www_k-startup_go_kr/profile.json
+!fingerprints/www_kurly_com/profile.json
+# END GENERATED: public-profiles
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local temp (repo-local pytest/temp — see conftest.py / pytest.ini)
+.tmp/
+
+# IDE
+.vscode/
+.idea/
+
+# Auth/cookies/tokens — never commit (overrides whitelists above)
+**/cookies*.json
+**/*auth*.json
+**/*token*.json
+**/*secret*
+.DS_Store
+
+# 사이트 수집 아카이브 — 독립 git 저장소 + 대용량 tar.gz (모노레포에서 제외)
+sites/
+
+# 내부 전용 — autoresearch 실험 run 데이터(스크랩한 제3자 리뷰/작성자명 포함).
+# 버전 관리하지 않고 로컬에만 둔다. 절대 commit 금지.
+autoresearch-web-crawler/
+
+# 내부 기획/설계 문서
+docs/

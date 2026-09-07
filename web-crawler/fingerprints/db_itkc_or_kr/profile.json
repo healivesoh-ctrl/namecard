@@ -1,0 +1,35 @@
+{
+  "domain": "db.itkc.or.kr",
+  "capability": "api",
+  "fetcher_type": "FetcherSession",
+  "antibot_type": "none",
+  "antibot_strategy": "none",
+  "site_type": "static",
+  "selectors": {
+    "article_section": "section[data-viewnode-id=\"<dataId>\"]",
+    "title": ".text_body_tit h4",
+    "volume_header": ".list_tit2 h3",
+    "body_paragraphs": ".text_body .xsl_para",
+    "dci": ".dci-pane a.dci @data-dci-copy",
+    "breadcrumb": ".path a",
+    "copyright": ".text_copyright"
+  },
+  "pagination": {
+    "type": "toc_tree",
+    "note": "페이지네이션 없음 — 목차 트리에서 리프 dataId 전체 추출 후 개별 노드 fetch"
+  },
+  "api_endpoints": [
+    {
+      "url": "https://db.itkc.or.kr/dir/pop/mokcha?dataId=<BOOK_ID>",
+      "method": "GET",
+      "note": "서책 전체 목차 SSR HTML — a[href*=dataId]로 트리 추출, 리프=BOOK_ID 뒤 세그먼트 3개"
+    },
+    {
+      "url": "https://db.itkc.or.kr/dir/node?dataId=<dataId>",
+      "method": "GET",
+      "note": "노드 본문 SSR HTML 프래그먼트 — 브라우저 없이 평문 GET으로 수집 가능"
+    }
+  ],
+  "notes": "한국고전종합DB. SPA처럼 보이지만(#해시 라우팅) 실제로는 /dir/node, /dir/pop/mokcha가 SSR HTML 프래그먼트를 반환 — 기본 Fetcher로 충분, 안티봇 없음. dataId 체계: ITKC_<코드>_<서책ID>[_권_문체_원문]. 원문(li프)은 서책ID 뒤 세그먼트 3개. 번역문은 itemId=BT 계열 별도. 694건 기준 1.5s 간격으로 무차단.",
+  "last_used": "2026-08-06"
+}

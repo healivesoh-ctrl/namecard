@@ -1,0 +1,31 @@
+{
+  "domain": "www.fss.or.kr",
+  "capability": "static",
+  "fetcher_type": "Fetcher",
+  "antibot_type": "none",
+  "antibot_strategy": "none",
+  "site_type": "static",
+  "selectors": {
+    "list_rows": "table tbody tr",
+    "list_번호": "td:nth-of-type(1) (get_all_text)",
+    "list_제목_link": "td a[href*='view.do']",
+    "list_담당부서": "td:nth-of-type(3)",
+    "list_등록일": "td:nth-of-type(4)",
+    "detail_제목": "h2.subject",
+    "detail_본문": "div.dbdata (html_content, <br>→\\n 보존)",
+    "detail_등록일": "dl.inline dd (first)",
+    "detail_담당부서": "dbdata 다음 dl > dt:contains(담당부서)+dd",
+    "detail_첨부": "dl.file-list div.file-list__set__item a[href*='fileDown.do']",
+    "detail_pdf_판별": "item 내 i.ico-pdf 존재 여부 또는 파일명 .pdf"
+  },
+  "pagination": {
+    "type": "query_param",
+    "param": "pageIndex",
+    "url": "/fss/bbs/B0000188/list.do?menuNo=200218&pageIndex={N}",
+    "per_page": 10,
+    "note": "fnSearch(N) → frm form GET submit, pageIndex만 바뀜"
+  },
+  "api_endpoints": [],
+  "notes": "FSS(금융감독원) 보도자료 게시판. 순수 SSR 정적 HTML, 안티봇 없음 → Fetcher.get(stealthy_headers=True) 200 OK. 게시판ID는 URL 경로(B0000188=보도자료, B0000189=보도설명, B0000190=공지). 목록 페이지네이션은 pageIndex 쿼리(10건/페이지). 상세는 view.do?nttId=N. 본문은 div.dbdata(짧은 요약, 상세는 첨부 hwp/pdf). 첨부 다운로드는 fileDown.do?atchFileId=X&fileSn=N, 응답 .body(bytes)에 %PDF 그대로 옴. PDF판별은 i.ico-pdf 아이콘. 같은 게시글에 별첨 PDF 여러 개 가능. Scrapling 0.4.2는 css_first 없음 → css()[0] 인덱싱 사용.",
+  "last_used": "2026-05-28"
+}

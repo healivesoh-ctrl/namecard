@@ -1,0 +1,24 @@
+{
+  "domain": "made-in-china.com",
+  "capability": "static",
+  "fetcher_type": "Fetcher",
+  "antibot_type": "none",
+  "antibot_strategy": "none",
+  "site_type": "static",
+  "selectors": {
+    "item_root": ".company-info",
+    "업체명": ".company-info .company-name h2",
+    "tr_box_row": ".company-info .tr-box",
+    "tr_box_key": ".tr-box .subject",
+    "tr_box_value": ".tr-box .td-des",
+    "contact_url": ".company-info a.contact-btn::attr(href)"
+  },
+  "pagination": {
+    "type": "url_path",
+    "url_template": "https://www.made-in-china.com/company-search/<Category>/C2--CP_<Province>/{page}.html",
+    "page_starts_at": 1
+  },
+  "api_endpoints": [],
+  "notes": "정적 HTML — 기본 Fetcher로 충분. DynamicFetcher는 fallback으로만. Main Products / City/Province는 .tr-box 안 .subject(키) + .td-des(값) 페어로 동적 정렬되므로 키 텍스트로 매칭해서 추출. User-Agent에 일반 Chrome UA 박는 게 안전. delay 1.5s.",
+  "last_used": "2026-04-14"
+}

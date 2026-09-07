@@ -1,0 +1,66 @@
+{
+  "domain": "g2b.go.kr",
+  "capability": "session",
+  "fetcher_type": "playwright_spa_intercept",
+  "antibot_type": "spa_session",
+  "antibot_strategy": "playwright_intercept",
+  "site_type": "spa_session",
+  "framework": "WebSquare",
+  "navigation": [
+    "메인(https://www.g2b.go.kr/) → 팝업 닫기(Escape) → 입찰(gnbMenu) → 입찰공고목록"
+  ],
+  "api_endpoints": [
+    {
+      "url": "https://www.g2b.go.kr/pn/pnp/pnpe/BidPbac/selectBidPbacScrollTypeList.do",
+      "method": "POST",
+      "content_type": "application/json;charset=UTF-8",
+      "pagination": {
+        "type": "startIndex_endIndex",
+        "param_start": "dlBidPbancLstM.startIndex",
+        "param_end": "dlBidPbancLstM.endIndex",
+        "page_size": 100
+      },
+      "required_headers": {
+        "submissionid": "mf_wfm_container_tacBidPbancLst_contents_tab2_body_sbmPbancBidPbancLst",
+        "menu-info": "{\"menuNo\":\"01175\",\"menuCangVal\":\"PNPE001_01\",\"bsneClsfCd\":\"%EC%97%85130026\",\"scrnNo\":\"00941\"}",
+        "target-id": "btnS0004",
+        "usr-id": "null"
+      },
+      "response_path": "result",
+      "field_mapping": {
+        "공고번호": "bidPbancUntyNoOrd",
+        "업무구분": "prcmBsneSeCdNm",
+        "공고명": "bidPbancNm",
+        "발주기관": "oderInstUntyGrpNm",
+        "수요기관": "dmstNm",
+        "게시일시": "pbancPstgDt",
+        "추정가격": "prspPrce",
+        "배정예산": "alotBgtAmt",
+        "낙찰방법": "scsbdMthdNm",
+        "공고상태": "pbancSttsNm"
+      }
+    }
+  ],
+  "selectors": {
+    "공고명_input": "#mf_wfm_container_tacBidPbancLst_contents_tab2_body_bidPbancNm",
+    "공고번호_input": "#mf_wfm_container_tacBidPbancLst_contents_tab2_body_ibxBidPbancNo",
+    "페이지크기_select": "#mf_wfm_container_tacBidPbancLst_contents_tab2_body_sbxRecordCountPerPage1",
+    "검색버튼": "#mf_wfm_container_tacBidPbancLst_contents_tab2_body_btnS0004",
+    "입찰메뉴": "a#[id*=\"gnbMenu\"] text:\"입찰\"",
+    "입찰공고목록_링크": "a text:\"입찰공고목록\""
+  },
+  "notes": [
+    "WebSquare SPA — 팝업이 클릭 이벤트를 막으므로 Escape + display:none으로 먼저 닫아야 함",
+    "keyword 입력은 page.fill() 필수 — DOM element.value 직접 주입 안 됨 (WebSquare 자체 값 관리)",
+    "페이지네이션: startIndex/endIndex 파라미터 방식 (scroll type list)",
+    "추가 페이지 fetch() 시 WebSquare 커스텀 헤더 3개 필수: submissionid, menu-info, target-id",
+    "헤더는 첫 번째 XHR 요청을 on_request로 캡처해서 재사용",
+    "로그인 불필요 (공개 입찰공고 목록)",
+    "2026-03-31 교량 키워드 203건 수집 검증 완료",
+    "2026-05-14 교량 키워드 1개월 146건 수집 (전체 146건 중 필터) — wait_for_selector(검색버튼, 60s) 보강 후 성공",
+    "2026-07-17 함정/경비함/예인선 3키워드 1개월 수집: 최종 35건 (dedup). 키워드는 payload bidPbancNm 치환으로 다중검색, 공고번호 기준 dedup — '경비함정'이 함정·경비함 양쪽에 걸림. POST는 Scrapling FetcherSession(캡처 쿠키/헤더 재사용)",
+    "2026-07-21 함정/경비함/예인선 3키워드 1개월 수집: 최종 32건 (dedup). 키워드는 payload bidPbancNm 치환으로 다중검색, 공고번호 기준 dedup — '경비함정'이 함정·경비함 양쪽에 걸림. POST는 Scrapling FetcherSession(캡처 쿠키/헤더 재사용)"
+  ],
+  "last_used": "2026-07-21",
+  "verified_date": "2026-03-31"
+}

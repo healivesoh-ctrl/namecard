@@ -1,0 +1,48 @@
+{
+  "domain": "www.k-startup.go.kr",
+  "capability": "static",
+  "fetcher_type": "Fetcher",
+  "antibot_type": "none",
+  "antibot_strategy": "none",
+  "site_type": "static_html",
+  "selectors": {
+    "list_root": "#bizPbancList > ul > li",
+    "제목": ".tit::text",
+    "상세링크_id": "a[href*='go_view']::attr(href) → 정규식 go_view\\((\\d+)\\) 로 pbancSn 추출",
+    "지원분야": ".flag (class에 day/flag_agency 없는 첫 요소)",
+    "시작일자": ".bottom .list 중 '시작일자' 포함 텍스트",
+    "마감일자": ".bottom .list 중 '마감일자' 포함 텍스트",
+    "detail_지역": ".dot_list 중 .tit='지역' 의 .txt",
+    "detail_접수기간": ".dot_list 중 .tit='접수기간' 의 .txt",
+    "총_페이지수": "a[onclick*='fn_egov_link_page'] → 정규식 fn_egov_link_page\\((\\d+)\\) 의 최댓값"
+  },
+  "pagination": {
+    "type": "url_param",
+    "param": "page",
+    "note": "1페이지는 param 없이 BASE_URL 그대로. 2페이지부터 ?page=N"
+  },
+  "api_endpoints": [
+    {
+      "url": "https://www.k-startup.go.kr/web/contents/bizpbanc-ongoing.do",
+      "method": "GET",
+      "response_type": "text/html",
+      "params": { "page": "<1..N>" },
+      "field_mapping": {
+        "이름": "제목",
+        "상세페이지 URL": "?schM=view&pbancSn=<pbancSn>",
+        "지원분야": "지원분야",
+        "지역": "상세페이지에서만 취득",
+        "접수기간": "상세페이지에서만 취득"
+      }
+    },
+    {
+      "url": "https://www.k-startup.go.kr/web/contents/bizpbanc-ongoing.do?schM=view&pbancSn={pbancSn}",
+      "method": "GET",
+      "response_type": "text/html",
+      "params": {},
+      "field_mapping": { "지역": ".dot_list .tit='지역'", "접수기간": ".dot_list .tit='접수기간'" }
+    }
+  ],
+  "notes": "중소벤처기업부 K-Startup '모집중 사업공고'. 안티봇 없음 — 평문 Fetcher로 충분하다(Stealthy/Dynamic 불필요). 리스트는 서버 렌더 HTML이라 JS 렌더링도 필요 없다. 페이지네이션은 onclick 속성 안에 박혀 있어서 링크 href가 아니라 a[onclick*='fn_egov_link_page'] 의 숫자 최댓값으로 총 페이지를 구해야 한다. 상세 링크도 href가 아니라 go_view(숫자) onclick에서 pbancSn을 뽑아 ?schM=view&pbancSn= 로 조립한다. 지역/접수기간은 리스트에 없고 상세 페이지 .dot_list 에만 있으므로 2단계 수집(리스트 전체 → 건별 상세)이 필요하다. 제목에 '새로운게시글' 문자열이 섞여 들어오므로 제거하고, '등록된 데이터가 없습니다' 행은 스킵한다. RateLimiter delay=1.5초로 수집 성공.",
+  "last_used": "2026-06-26"
+}

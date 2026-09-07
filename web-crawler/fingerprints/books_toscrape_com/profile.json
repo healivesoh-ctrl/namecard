@@ -1,0 +1,24 @@
+{
+  "domain": "books.toscrape.com",
+  "capability": "static",
+  "fetcher_type": "Fetcher",
+  "antibot_type": "none",
+  "antibot_strategy": "none",
+  "site_type": "static",
+  "selectors": {
+    "item_root": "article.product_pod",
+    "제목": "article.product_pod h3 a::attr(title)",
+    "가격": "article.product_pod p.price_color::text",
+    "평점": "article.product_pod p.star-rating (class에서 One/Two/Three/Four/Five 추출 후 1~5로 매핑)",
+    "재고": "article.product_pod p.instock.availability::text"
+  },
+  "pagination": {
+    "type": "url_path",
+    "url_template": "https://books.toscrape.com/catalogue/page-{page}.html",
+    "items_per_page": 20,
+    "page_starts_at": 1
+  },
+  "api_endpoints": [],
+  "notes": "크롤링 연습용 정적 사이트 — 기본 Fetcher.get()으로 끝. 평점은 텍스트가 아니라 CSS class(`star-rating One` 등) 에 매핑돼 있어서 RATING_MAP({One:1,...,Five:5})로 변환 필요. delay 1.0s면 충분. 봇 차단 전혀 없음 — 새 fetcher/패턴 검증할 때 reference 사이트로 활용.",
+  "last_used": "2026-03-25"
+}

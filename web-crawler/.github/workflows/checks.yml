@@ -1,0 +1,39 @@
+name: checks
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # requirements.txt 전체를 설치한다. bare `scrapling`(파서만)로는 부족하다 —
+      # e2e 테스트 파일들이 모듈 최상단에서 `from scrapling.fetchers import Fetcher` 를
+      # import 하고, pytest 는 -k 로 걸러내기 전에 먼저 모든 테스트 파일을 수집(import)
+      # 하므로 fetcher 런타임(curl_cffi 등)이 없으면 그 시점에 수집 자체가 실패한다.
+      # 브라우저 바이너리(`scrapling install`/`playwright install`)는 설치하지 않는다 —
+      # e2e 를 제외하므로 실제로 브라우저를 띄우는 테스트가 없다.
+      - name: Install
+        run: pip install -r requirements.txt
+
+      # e2e 는 제외한다. 실제 사이트를 치는 테스트를 CI 에서 매 PR 마다 돌리면
+      # 데이터센터 IP 로 제3자 서버에 반복 부하를 주게 된다 — 이 저장소가 사용자에게
+      # 지키라고 말하는 '부담' 조건을 저장소 자신이 어기는 셈이다.
+      - name: Unit tests
+        run: python -m pytest -q -k "not e2e"
+
+      # 생성물 드리프트 — 배포 화이트리스트가 분류기와 어긋나면 여기서 걸린다.
+      - name: Generated blocks are in sync
+        run: |
+          python scripts/sync_domain_list.py --check
+          python scripts/sync_codex_mirror.py --check

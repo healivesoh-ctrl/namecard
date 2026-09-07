@@ -1,0 +1,75 @@
+{
+  "domain": "wanted.co.kr",
+  "capability": "api",
+  "fetcher_type": "FetcherSession",
+  "antibot_type": "none",
+  "antibot_strategy": "none",
+  "selectors": {},
+  "pagination": {
+    "type": "offset",
+    "param": "offset",
+    "limit": 20
+  },
+  "api_endpoints": [
+    {
+      "url": "https://www.wanted.co.kr/api/v4/jobs",
+      "method": "GET",
+      "params": {
+        "country": "kr",
+        "job_sort": "job.latest_order",
+        "years": -1,
+        "locations": "all",
+        "limit": 20,
+        "offset": 0
+      },
+      "field_mapping": {
+        "회사명": "company.name",
+        "포지션명": "position",
+        "지역": "address.location",
+        "상세주소": "address.full_location",
+        "경력조건": "annual_from ~ annual_to",
+        "공고ID": "id"
+      }
+    },
+    {
+      "url": "https://www.wanted.co.kr/api/v4/jobs/{job_id}",
+      "method": "GET",
+      "params": {},
+      "field_mapping": {
+        "공고소개": "job.detail.intro",
+        "주요업무": "job.detail.main_tasks",
+        "자격요건": "job.detail.requirements",
+        "우대사항": "job.detail.preferred_points",
+        "혜택및복지": "job.detail.benefits"
+      }
+    },
+    {
+      "url": "https://www.wanted.co.kr/api/chaos/navigation/v1/results",
+      "method": "GET",
+      "params": {
+        "job_group_id": "<직군 ID, 예: 518=개발>",
+        "country": "kr",
+        "job_sort": "job.popularity_order",
+        "years": -1,
+        "locations": "all",
+        "limit": 20,
+        "offset": 0
+      },
+      "field_mapping": {
+        "회사명": "data[].company.name",
+        "포지션명": "data[].position",
+        "지역": "data[].address.location",
+        "구": "data[].address.district",
+        "경력조건": "data[].annual_from ~ annual_to",
+        "공고ID": "data[].id",
+        "보상금": "data[].reward_total",
+        "기술스택": "data[].skill_tags",
+        "고용형태": "data[].employment_type"
+      },
+      "notes": "wdlist 페이지(직군별 목록)가 실제로 쓰는 엔드포인트. job_group_id로 직군 필터가 되는 게 v4 대비 장점. 단 address에 full_location(상세주소)이 없다 — country/location/district만. 응답은 {data:[...], links:{prev,next}}."
+    }
+  ],
+  "notes": "Next.js CSR site with public JSON API. No auth needed. 엔드포인트 2계열 — 용도로 골라라: (A) /api/v4/jobs — 상세주소(address.full_location)가 있고 job_sort=job.latest_order 최신순. 직군 필터는 없음. (B) /api/chaos/navigation/v1/results — wdlist 페이지가 쓰는 현행 엔드포인트, job_group_id로 직군 필터 가능(518=개발). full_location 없음. 둘 다 limit/offset 페이지네이션(limit=20). 목록에서 ID 확보 후 /api/v4/jobs/{id}로 상세(intro/main_tasks/requirements/preferred_points/benefits). NOTE: Scrapling resp.text can be empty on this API -> use resp.json() / resp.body. IMAGES: /api/v4/jobs/{id} -> job.company_images[].url (brand photos, 1080x790), job.title_img.origin, job.logo_img.origin; download bytes via FetcherSession resp.body. DOM 폴백이 필요하면 안정 셀렉터는 a[href^=\"/wd/\"] (카드 class는 JobCard_JobCard__aVx71 처럼 빌드 해시라 불안정). 목록은 무한 스크롤.",
+  "last_used": "2026-08-19",
+  "site_type": "csr_api"
+}

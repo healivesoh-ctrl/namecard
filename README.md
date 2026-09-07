@@ -3,6 +3,9 @@
 > 📣 **SNS 자동화**: 인스타그램·샤오홍슈·네이버블로그용 콘텐츠를 자동 생성·업로드하는
 > 시스템은 [`social-automation/`](social-automation/README.md) 에 있습니다.
 >
+> 🕷️ **웹 크롤링 에이전트**: 사이트 정찰→수집→엑셀 출력을 대신해 주는 도구는 [`web-crawler/`](web-crawler/README.md) 에 있습니다.
+>   전국 산모신생아 건강관리 제공기관 수집 작업은 [`web-crawler/jobs/sanmo_provider/`](web-crawler/jobs/sanmo_provider/README.md) 참고.
+>
 > 🎓 **수료증 자동 생성기**: 엑셀 명단으로 학생별 수료증 PNG 를 만드는 도구는
 > [`certificate.html`](certificate.html) 입니다. 자세한 사용법은 아래 [수료증 자동 생성기](#수료증-자동-생성기) 참고.
 

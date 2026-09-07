@@ -1,0 +1,30 @@
+# 범용 웹 크롤링 에이전트 — Python 의존성
+#
+# 신규 환경은 한 방 설치 권장:
+#   Windows : powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+#   기타    : python -m venv .venv && . .venv/bin/activate && python scripts/bootstrap.py
+#
+# 수동 설치:
+#   pip install -r requirements.txt
+#   scrapling install     # Chromium 설치 (Windows venv: .\.venv\Scripts\scrapling.exe install)
+#     → scrapling install 이 내부적으로 'playwright install chromium' 을 수행한다.
+#       따라서 playwright install 을 따로 또 실행할 필요 없음 (중복).
+#
+# 참고: bare `scrapling` 은 파서만 설치된다. fetcher 런타임(curl_cffi/playwright/patchright 등)은
+#       [fetchers] extra 로 들어오므로 아래처럼 extra 를 반드시 포함해야 한다.
+#       (검증: python scripts/preflight.py)
+
+# 수집 엔진 + fetcher 런타임 일괄(click, curl_cffi, playwright, patchright, browserforge,
+# msgspec, anyio, apify-fingerprint-datapoints). pre-1.0 · v0.3 breaking 전력 → 상한 필수.
+scrapling[fetchers]>=0.4.8,<0.5
+
+# 아래 셋은 scrapling[fetchers] 의 전이 의존이지만, 우리 코드가 '직접' import 하므로
+# 직접 선언해 버전 통제권을 가져온다. 하한은 2026-08-20 실측 설치본 기준.
+# ⚠ playwright 와 patchright 는 버전이 함께 움직여야 한다(둘 다 1.62.x) — 한쪽만 크게 올리지 말 것.
+playwright>=1.62             # scripts/chrome_cdp.py, scripts/preflight.py, 생성 crawl_script.py(SPA 인터셉트)
+curl_cffi>=0.16              # 사다리 4단 경량 그리드
+patchright>=1.62             # StealthyFetcher 런타임 (scripts/bootstrap.py 가 설치 검증)
+
+protego>=0.3.0               # robots.txt 파서 — scripts/utils.py check_robots() 에서 사용
+openpyxl>=3.1                # 엑셀(.xlsx) 출력
+pytest>=8.0                  # 테스트 실행 (개발용)

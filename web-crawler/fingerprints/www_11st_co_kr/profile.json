@@ -1,0 +1,46 @@
+{
+  "domain": "www.11st.co.kr",
+  "capability": "api",
+  "fetcher_type": "FetcherSession",
+  "antibot_type": "none",
+  "antibot_strategy": "none",
+  "site_type": "html_endpoint",
+  "selectors": {
+    "review_item": "li.review_list_element",
+    "상품명": "main product page og:title/title",
+    "별점": "p.grade em::text or p.grade span[class*=grade_]",
+    "리뷰 내용": ".cont_text_wrap p.cont_review_hide::text",
+    "리뷰 작성일": "p.side span.date::text",
+    "리뷰 작성자": "dt.name::text"
+  },
+  "pagination": {
+    "type": "url_param",
+    "endpoint": "https://www.11st.co.kr/products/{product_no}/review-list",
+    "page_param": "pageNo",
+    "page_size_param": "pageSize",
+    "verified_page_size": 20
+  },
+  "api_endpoints": [
+    {
+      "url": "https://www.11st.co.kr/products/{product_no}/review-list",
+      "method": "GET",
+      "params": {
+        "pageSize": 20,
+        "pageNo": "{page_no}",
+        "sortType": "01",
+        "myProduct": "false"
+      },
+      "field_mapping": {
+        "상품명": "product page title",
+        "별점": "p.grade em",
+        "리뷰 내용": ".cont_review_hide",
+        "리뷰 작성일": ".date",
+        "리뷰 작성자": "dt.name"
+      }
+    }
+  ],
+  "notes": "11st 상품 리뷰는 상품 페이지 로드 중 /products/{product_no}/review-list HTML 엔드포인트로 내려온다. 브라우저 기본값인 pageSize=20이 가장 안정적이며 pageSize=50은 일부 페이지에서 중복/누락이 생길 수 있고 pageSize=100은 빈 목록이어서 피한다. Referer를 상품 URL로 둔다.",
+  "last_used": "2026-06-09",
+  "last_total_count": 654,
+  "last_collected_count": 654
+}

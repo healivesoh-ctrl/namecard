@@ -1,0 +1,21 @@
+{
+  "domain": "guesskorea.com",
+  "capability": "static",
+  "fetcher_type": "Fetcher",
+  "antibot_type": "none",
+  "antibot_strategy": "none",
+  "site_type": "static",
+  "selectors": {
+    "product_image": "img.lazy::attr(data-src)",
+    "detail_link": "a[href*=\"/product/\"][href*=\"/category/\"]",
+    "big_image": "/web/product/big/ 및 /web/product/extra/big/"
+  },
+  "pagination": {
+    "type": "category_param",
+    "param": "cate_no",
+    "page_url": "https://guesskorea.com/product/project.html?cate_no={cate_no}"
+  },
+  "api_endpoints": [],
+  "notes": "Cafe24 쇼핑몰. project.html?cate_no=N 카테고리 페이지. 리스트는 상품 이미지가 lazy-load라 <img class=lazy> src=loading_gray.gif, 실제 URL은 data-src. data-src 중 /web/product/ 포함분이 상품 이미지(medium=목록썸네일, small=hover). ★원본 대형(big)은 리스트에 없음 — /web/product/big/ 경로 직접치환은 404. 상품 상세페이지(리스트의 <a href=/product/<slug>/<pno>/category/..>)를 열어야 /web/product/big/(대표 1장)+/web/product/extra/big/(상세컷 다수) 원본이 나옴. big 대표 파일 해시는 medium과 다름. ★이미지 성격: .jpg=실사 촬영(모델/스타일링/캠페인), .png=투명배경 제품 누끼컷. // 프로토콜-relative→https: 붙일 것. 바이너리는 FetcherSession.get().body(bytes). 봇차단 없음.",
+  "last_used": "2026-07-09"
+}
