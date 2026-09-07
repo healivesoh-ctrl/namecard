@@ -5,3 +5,9 @@ social-automation/.env
 social-automation/sessions/
 __pycache__/
 *.pyc
+
+# kakao-alimtalk: 비밀값·DB 커밋 금지
+kakao-alimtalk/.env
+kakao-alimtalk/rules.yaml
+kakao-alimtalk/data/
+.pytest_cache/

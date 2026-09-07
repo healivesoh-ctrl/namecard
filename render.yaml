@@ -22,3 +22,36 @@ services:
         sync: false
       - key: IG_USER_ID          # 인스타그램 업로드 (선택)
         sync: false
+
+  - type: web
+    name: kakao-alimtalk
+    runtime: docker
+    plan: free
+    dockerfilePath: ./kakao-alimtalk/Dockerfile
+    dockerContext: ./kakao-alimtalk
+    healthCheckPath: /healthz
+    # 예약 발송을 재배포 후에도 유지하려면 Disk 를 /app/data 에 추가 (유료 플랜):
+    # disk: { name: alimtalk-data, mountPath: /app/data, sizeGB: 1 }
+    envVars:
+      - key: WEBHOOK_SECRET      # 설문폼 웹훅 인증 비밀값 (필수)
+        sync: false
+      - key: ADMIN_PASSWORD      # 대시보드 비밀번호 (필수)
+        sync: false
+      - key: ALIMTALK_PROVIDER   # console | solapi | aligo
+        value: console
+      - key: ALIMTALK_SENDER     # 발신번호 (숫자만)
+        sync: false
+      - key: SOLAPI_API_KEY
+        sync: false
+      - key: SOLAPI_API_SECRET
+        sync: false
+      - key: SOLAPI_PF_ID
+        sync: false
+      - key: ALIGO_API_KEY
+        sync: false
+      - key: ALIGO_USER_ID
+        sync: false
+      - key: ALIGO_SENDER_KEY
+        sync: false
+      - key: DB_PATH
+        value: /app/data/alimtalk.db

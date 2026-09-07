@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>카카오 알림톡 자동 발송</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7fb; --card: #ffffff; --text: #1a1d27; --muted: #6b7280;
+    --border: #e5e7eb; --accent: #4f46e5; --accent-soft: #eef2ff;
+    --green: #059669; --green-soft: #ecfdf5; --red: #dc2626; --red-soft: #fef2f2;
+    --yellow: #b45309; --yellow-soft: #fffbeb;
+    --gray-soft: #f3f4f6; --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111318; --card: #1a1d25; --text: #e7e9ee; --muted: #9aa1ad;
+      --border: #2a2e38; --accent: #818cf8; --accent-soft: #26294a;
+      --green: #34d399; --green-soft: #123528; --red: #f87171; --red-soft: #3a1a1a;
+      --yellow: #fbbf24; --yellow-soft: #3a2e10;
+      --gray-soft: #23262e; --shadow: 0 1px 3px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; font-size: 15px; line-height: 1.55; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  .spacer { flex: 1; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  code { background: var(--gray-soft); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: 8px; padding: 7px 14px; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.sm { padding: 3px 9px; font-size: 12.5px; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  input, select, textarea { font: inherit; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); width: 100%; }
+  textarea { min-height: 120px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 18px; margin-bottom: 20px; }
+  .panel h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .row > * { flex: 1; min-width: 160px; }
+  .row > button { flex: 0 0 auto; }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  .hidden { display: none !important; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .stat .n { font-size: 24px; font-weight: 700; }
+  .stat .l { font-size: 12px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12.5px; }
+  .tbl { overflow-x: auto; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .b-pending { background: var(--accent-soft); color: var(--accent); }
+  .b-sent { background: var(--green-soft); color: var(--green); }
+  .b-failed { background: var(--red-soft); color: var(--red); }
+  .b-cancelled, .b-skipped { background: var(--gray-soft); color: var(--muted); }
+  .warn { background: var(--yellow-soft); color: var(--yellow); border: 1px solid var(--yellow); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; margin-bottom: 16px; }
+  .msg { font-size: 13px; margin-top: 8px; white-space: pre-wrap; }
+  .msg.ok { color: var(--green); } .msg.err { color: var(--red); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .rules { font-size: 13px; }
+  .rules li { margin: 4px 0 4px 16px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .tabs button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📨 카카오 알림톡 자동 발송</h1>
+    <div class="spacer"></div>
+    <span id="provider" class="badge b-cancelled">연결 안 됨</span>
+  </header>
+  <div class="sub">구글폼·설문폼 응답의 전화번호로 알림톡을 자동 예약·발송합니다. 규칙은 서버의 <code>rules.yaml</code> 에서 편집합니다.</div>
+
+  <div id="login" class="panel">
+    <h2>관리자 로그인</h2>
+    <div class="row">
+      <input type="password" id="pw" placeholder="ADMIN_PASSWORD">
+      <button class="primary" id="loginBtn">접속</button>
+    </div>
+    <div id="loginMsg" class="msg"></div>
+  </div>
+
+  <div id="main" class="hidden">
+    <div id="warn" class="warn hidden"></div>
+    <div class="stats" id="stats"></div>
+
+    <div class="tabs">
+      <button data-tab="jobs" class="on">발송 현황</button>
+      <button data-tab="test">테스트 발송</button>
+      <button data-tab="bulk">명단 일괄 접수</button>
+      <button data-tab="optout">수신거부</button>
+      <button data-tab="setup">연동 안내</button>
+    </div>
+
+    <div class="panel tab" id="tab-jobs">
+      <h2>발송 현황
+        <select id="statusFilter" style="width:auto">
+          <option value="">전체</option><option value="pending">대기</option><option value="sent">발송됨</option>
+          <option value="failed">실패</option><option value="cancelled">취소</option>
+        </select>
+        <button class="sm" id="refreshBtn">새로고침</button>
+        <span class="spacer"></span>
+        <span class="hint" id="autoHint">30초마다 자동 갱신</span>
+      </h2>
+      <div class="tbl"><table>
+        <thead><tr><th>#</th><th>상태</th><th>예정 시각</th><th>메시지</th><th>수신</th><th>본문/변수</th><th>결과</th><th></th></tr></thead>
+        <tbody id="jobs"></tbody>
+      </table></div>
+    </div>
+
+    <div class="panel tab hidden" id="tab-test">
+      <h2>테스트 발송</h2>
+      <div class="row">
+        <input type="text" id="tPhone" placeholder="받을 번호 (010-0000-0000)">
+        <select id="tMessage"></select>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input type="text" id="tVars" placeholder="변수 (예: 이름=홍길동, 수강 과정=AI 사고력)">
+        <button class="primary" id="testBtn">지금 발송</button>
+      </div>
+      <div class="hint">발송사가 <code>console</code> 이거나 <code>ALIMTALK_DRY_RUN=1</code> 이면 실제로 나가지 않고 서버 로그에만 찍힙니다.</div>
+      <div id="testMsg" class="msg"></div>
+    </div>
+
+    <div class="panel tab hidden" id="tab-bulk">
+      <h2>명단 일괄 접수 (구글시트·엑셀 붙여넣기)</h2>
+      <div class="row">
+        <select id="bForm"></select>
+        <input type="file" id="bFile" accept=".csv,.tsv,.txt">
+      </div>
+      <textarea id="bText" style="margin-top:10px" placeholder="첫 줄은 제목(이름, 연락처 …), 그 아래 한 줄에 한 명. 구글시트에서 범위를 복사해 붙여넣으면 됩니다."></textarea>
+      <div class="row" style="margin-top:10px">
+        <span class="hint" id="bPreview"></span>
+        <button class="primary" id="bulkBtn">접수 → 규칙대로 예약</button>
+      </div>
+      <div class="hint">각 행이 폼 응답 1건으로 처리되어 <code>rules.yaml</code> 규칙(즉시·지연·날짜 기준)대로 예약됩니다. 24시간 중복·수신거부 번호는 자동 제외.</div>
+      <div id="bulkMsg" class="msg"></div>
+    </div>
+
+    <div class="panel tab hidden" id="tab-optout">
+      <h2>수신거부 번호</h2>
+      <div class="row">
+        <input type="text" id="oPhone" placeholder="010-0000-0000">
+        <input type="text" id="oReason" placeholder="사유 (선택)">
+        <button class="primary" id="optBtn">등록</button>
+      </div>
+      <div class="hint">등록하면 대기 중인 예약도 모두 취소되고 이후 접수에서도 제외됩니다.</div>
+      <div class="tbl" style="margin-top:12px"><table>
+        <thead><tr><th>번호</th><th>등록일</th><th>사유</th><th></th></tr></thead>
+        <tbody id="optouts"></tbody>
+      </table></div>
+    </div>
+
+    <div class="panel tab hidden" id="tab-setup">
+      <h2>연동 안내</h2>
+      <p style="font-size:13.5px">설문폼이 응답을 받으면 아래 주소로 JSON 을 POST 하도록 설정합니다. 비밀값은 서버의 <code>WEBHOOK_SECRET</code> 입니다.</p>
+      <div class="row" style="margin-top:8px"><input type="text" id="whUrl" readonly><button class="sm" id="copyWh">복사</button></div>
+      <ul class="rules" style="margin-top:12px">
+        <li><b>구글폼</b>: 응답 스프레드시트 → 확장 프로그램 → Apps Script 에 <code>apps-script/Code.gs</code> 붙여넣기 → <code>setup()</code> 실행 (자세한 순서는 README)</li>
+        <li><b>Tally / Typeform</b>: 폼 설정의 Webhooks 에 이 주소를 그대로 등록 (형식 자동 인식)</li>
+        <li><b>네이버폼·기타</b>: 응답을 구글시트로 모은 뒤 위 Apps Script 방식, 또는 Zapier/Make 로 <code>{"이름":"…","연락처":"…"}</code> 형태로 POST</li>
+      </ul>
+      <details style="margin-top:12px"><summary>현재 적용 중인 규칙 보기</summary><ul class="rules" id="rulesView"></ul></details>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let PW = sessionStorage.getItem('alimtalk_pw') || '';
+let OVERVIEW = null;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'X-Admin-Password': PW, ...(opts.headers || {}) } });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+  return data;
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function setMsg(id, text, ok) { const el = $(id); el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
+
+async function login() {
+  PW = $('#pw').value.trim();
+  try {
+    OVERVIEW = await api('/api/overview');
+    sessionStorage.setItem('alimtalk_pw', PW);
+    $('#login').classList.add('hidden'); $('#main').classList.remove('hidden');
+    renderOverview(); loadJobs(); loadOptouts();
+  } catch (e) { setMsg('#loginMsg', e.message, false); }
+}
+$('#loginBtn').onclick = login;
+$('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+function renderOverview() {
+  const o = OVERVIEW, c = o.counts || {};
+  const prov = $('#provider');
+  prov.textContent = o.dry_run ? `${o.provider} (DRY-RUN)` : o.provider;
+  prov.className = 'badge ' + (o.provider === 'console' || o.dry_run ? 'b-pending' : 'b-sent');
+  const w = $('#warn');
+  if (o.provider_error) { w.textContent = '발송사 설정 오류 — 실발송 없이 로그만 남깁니다: ' + o.provider_error; w.classList.remove('hidden'); }
+  else if (o.provider === 'console') { w.textContent = '발송사가 console 입니다. 실제 발송하려면 .env 의 ALIMTALK_PROVIDER 를 solapi 또는 aligo 로 바꾸세요.'; w.classList.remove('hidden'); }
+  else w.classList.add('hidden');
+  $('#stats').innerHTML = [['submissions', '접수'], ['pending', '대기'], ['sent', '발송됨'], ['failed', '실패'], ['cancelled', '취소'], ['optouts', '수신거부']]
+    .map(([k, l]) => `<div class="stat"><div class="n">${c[k] || 0}</div><div class="l">${l}</div></div>`).join('');
+  const forms = o.forms || [];
+  $('#bForm').innerHTML = forms.map(f => `<option value="${esc(f.id)}">${esc(f.id)}</option>`).join('');
+  $('#tMessage').innerHTML = forms.flatMap(f => f.messages.map(m => `<option value="${esc(f.id)}|${esc(m.name)}">[${esc(f.id)}] ${esc(m.name)} (${esc(m.template)})</option>`)).join('');
+  $('#whUrl').value = `${location.origin}/webhook/form?form=${forms[0]?.id || 'default'}&secret=<WEBHOOK_SECRET>`;
+  $('#rulesView').innerHTML = forms.map(f => `<li><b>${esc(f.id)}</b> (동의필수 ${f.require_consent ? 'O' : 'X'}, 중복제외 ${f.dedupe_hours}h)<ul>` +
+    f.messages.map(m => `<li>${esc(m.name)} — 템플릿 <code>${esc(m.template)}</code>, 시점 <code>${esc(JSON.stringify(m.when))}</code></li>`).join('') + '</ul></li>').join('');
+}
+
+async function loadJobs() {
+  try {
+    const status = $('#statusFilter').value;
+    const { jobs } = await api('/api/jobs?limit=300' + (status ? `&status=${status}` : ''));
+    $('#jobs').innerHTML = jobs.length ? jobs.map(j => `<tr>
+      <td>${j.id}</td><td><span class="badge b-${j.status}">${{ pending: '대기', sent: '발송됨', failed: '실패', cancelled: '취소', skipped: '생략' }[j.status] || j.status}</span></td>
+      <td>${esc(j.scheduled_at)}</td><td>${esc(j.message)}<div class="hint" style="margin:0">${esc(j.template)}</div></td><td>${esc(j.phone)}</td>
+      <td><details><summary>보기</summary><div class="msg">${esc(j.text || JSON.stringify(j.variables))}</div></details></td>
+      <td>${j.status === 'sent' ? esc(j.channel || '') + (j.message_id ? ' · ' + esc(j.message_id) : '') : esc(j.error || '')}${j.attempts > 1 ? ` (${j.attempts}회)` : ''}</td>
+      <td>${j.status === 'pending' ? `<button class="sm" onclick="act(${j.id},'send-now')">지금</button> <button class="sm" onclick="act(${j.id},'cancel')">취소</button>` : j.status === 'failed' ? `<button class="sm" onclick="act(${j.id},'send-now')">재시도</button>` : ''}</td>
+    </tr>`).join('') : '<tr><td colspan="8" class="hint">아직 발송 작업이 없습니다.</td></tr>';
+    OVERVIEW = await api('/api/overview'); renderOverview();
+  } catch (e) { $('#jobs').innerHTML = `<tr><td colspan="8" class="msg err">${esc(e.message)}</td></tr>`; }
+}
+window.act = async (id, what) => {
+  if (what === 'cancel' && !confirm(`#${id} 예약을 취소할까요?`)) return;
+  try { await api(`/api/jobs/${id}/${what}`, { method: 'POST' }); loadJobs(); } catch (e) { alert(e.message); }
+};
+$('#refreshBtn').onclick = loadJobs;
+$('#statusFilter').onchange = loadJobs;
+setInterval(() => { if (!$('#main').classList.contains('hidden')) loadJobs(); }, 30000);
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('hidden', t.id !== 'tab-' + b.dataset.tab));
+});
+
+$('#testBtn').onclick = async () => {
+  const [form, message] = ($('#tMessage').value || '|').split('|');
+  const variables = {};
+  $('#tVars').value.split(',').map(s => s.trim()).filter(Boolean).forEach(kv => { const i = kv.indexOf('='); if (i > 0) variables[kv.slice(0, i).trim()] = kv.slice(i + 1).trim(); });
+  $('#testBtn').disabled = true;
+  try {
+    const r = await api('/api/send-test', { method: 'POST', body: JSON.stringify({ phone: $('#tPhone').value, form, message, variables }) });
+    setMsg('#testMsg', (r.ok ? '발송 요청 성공' : '실패: ' + (r.result.error || '')) + '\n' + (r.job.text || JSON.stringify(r.job.variables)), r.ok);
+    loadJobs();
+  } catch (e) { setMsg('#testMsg', e.message, false); } finally { $('#testBtn').disabled = false; }
+};
+
+function parseTable(text) {
+  const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const delim = lines[0].includes('\t') ? '\t' : ',';
+  const split = (l) => { // 따옴표가 있는 CSV 도 처리
+    const out = []; let cur = '', q = false;
+    for (const ch of l) { if (ch === '"') q = !q; else if (ch === delim && !q) { out.push(cur); cur = ''; } else cur += ch; }
+    out.push(cur); return out.map(s => s.trim());
+  };
+  const head = split(lines[0]);
+  return lines.slice(1).map(l => { const cells = split(l); const row = {}; head.forEach((h, i) => { if (h) row[h] = cells[i] ?? ''; }); return row; });
+}
+$('#bText').addEventListener('input', () => { const rows = parseTable($('#bText').value); $('#bPreview').textContent = rows.length ? `${rows.length}명 · 항목: ${Object.keys(rows[0]).join(', ')}` : ''; });
+$('#bFile').onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const buf = await f.arrayBuffer();
+  let text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+  if (/�/.test(text)) { try { text = new TextDecoder('euc-kr').decode(buf); } catch { /* ignore */ } }
+  $('#bText').value = text.replace(/^﻿/, ''); $('#bText').dispatchEvent(new Event('input'));
+};
+$('#bulkBtn').onclick = async () => {
+  const rows = parseTable($('#bText').value);
+  if (!rows.length) return setMsg('#bulkMsg', '첫 줄 제목 + 1명 이상 필요합니다.', false);
+  if (!confirm(`${rows.length}명을 접수하고 규칙대로 알림톡을 예약할까요?`)) return;
+  $('#bulkBtn').disabled = true;
+  try {
+    const r = await api('/api/bulk', { method: 'POST', body: JSON.stringify({ form: $('#bForm').value, rows }) });
+    const skipped = r.results.filter(x => !x.accepted).map(x => `  ${x.row}행 ${x.phone || ''}: ${x.reason}`).join('\n');
+    setMsg('#bulkMsg', `${r.total}명 중 ${r.accepted}명 접수` + (skipped ? '\n생략:\n' + skipped : ''), true);
+    loadJobs();
+  } catch (e) { setMsg('#bulkMsg', e.message, false); } finally { $('#bulkBtn').disabled = false; }
+};
+
+async function loadOptouts() {
+  try {
+    const { optouts } = await api('/api/optouts');
+    $('#optouts').innerHTML = optouts.length ? optouts.map(o => `<tr><td>${esc(o.phone)}</td><td>${esc((o.created_at || '').slice(0, 16).replace('T', ' '))}</td><td>${esc(o.reason || '')}</td>
+      <td><button class="sm" onclick="removeOptout('${esc(o.phone)}')">해제</button></td></tr>`).join('') : '<tr><td colspan="4" class="hint">없음</td></tr>';
+  } catch (e) { $('#optouts').innerHTML = `<tr><td colspan="4" class="msg err">${esc(e.message)}</td></tr>`; }
+}
+$('#optBtn').onclick = async () => {
+  try { await api('/api/optouts', { method: 'POST', body: JSON.stringify({ phone: $('#oPhone').value, reason: $('#oReason').value }) }); $('#oPhone').value = ''; loadOptouts(); loadJobs(); }
+  catch (e) { alert(e.message); }
+};
+window.removeOptout = async (phone) => { try { await api(`/api/optouts/${encodeURIComponent(phone)}`, { method: 'DELETE' }); loadOptouts(); } catch (e) { alert(e.message); } };
+$('#copyWh').onclick = () => navigator.clipboard.writeText($('#whUrl').value);
+
+if (PW) { $('#pw').value = PW; login(); }
+</script>
+</body>
+</html>

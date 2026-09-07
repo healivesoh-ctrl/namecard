@@ -1,0 +1,72 @@
+# ─────────────────────────────────────────────────────────────
+# 설문폼 응답 → 카카오 알림톡 자동 발송 규칙
+#   이 파일을 rules.yaml 로 복사해 수정하세요. (rules.yaml 이 없으면 이 파일이 사용됩니다)
+#   비밀값(API 키 등)은 .env 에만 적습니다.
+# ─────────────────────────────────────────────────────────────
+
+provider: console          # console(실발송 없음, 로그만) | solapi | aligo   ← .env 의 ALIMTALK_PROVIDER 가 우선
+sender: ""                 # 발신번호 (.env 의 ALIMTALK_SENDER 가 우선)
+kakao:
+  channel_id: ""           # 솔라피 pfId / 알리고 senderkey (.env 의 KAKAO_CHANNEL_ID 등이 우선)
+
+timezone: Asia/Seoul
+quiet_hours:               # 이 시간대에 걸리는 발송은 종료 시각(08:00)으로 미룹니다. 지우면 제한 없음.
+  start: "21:00"
+  end: "08:00"
+
+# 폼 항목 이름에서 전화번호·이름·수신동의 항목을 찾을 때 쓰는 키워드 (부분 일치, 대소문자 무시)
+fields:
+  phone: [전화번호, 휴대폰, 휴대전화, 연락처, 핸드폰, 전화, phone, mobile]
+  name: [이름, 성함, 성명, name]
+  consent: [수신동의, 수신 동의, 마케팅, 알림톡 동의, 메시지 수신]
+
+forms:
+  # 폼 id: 웹훅 주소의 ?form=<id> 또는 Apps Script 의 FORM_ID 와 맞춥니다. 'default' 는 id 가 없을 때 사용.
+  - id: default
+    require_consent: false   # true 면 '수신동의' 항목에 동의한 응답에만 발송 (광고성 메시지는 반드시 true)
+    dedupe_hours: 24         # 같은 번호가 24시간 안에 다시 제출하면 발송 생략 (0 = 제한 없음)
+    # match: { "수강 과정": "AI 사고력" }   # 특정 답변일 때만 이 폼 규칙 적용 (부분 일치)
+
+    messages:
+      # 1) 접수 즉시 — 접수 확인 알림톡
+      - name: 접수확인
+        template: TP_RECEIPT_01          # 발송사에서 승인받은 알림톡 템플릿 코드
+        when: immediate
+        # 템플릿 변수: {{항목명}} 으로 폼 응답을 넣습니다. 내장: {{name}} {{phone}} {{date}}
+        variables:
+          이름: "{{name|고객}}"
+          과정명: "{{수강 과정|프로그램}}"
+        # 완성 본문 — 알리고는 필수(승인 템플릿 원문과 동일해야 함), 솔라피는 알림톡 실패 시 문자(SMS/LMS) 대체 발송문으로 사용
+        text: |
+          {{name|고객}}님, {{수강 과정|프로그램}} 신청이 접수되었습니다.
+          담당자가 확인 후 연락드리겠습니다. 감사합니다.
+        subject: 신청 접수 안내
+        fallback: true                    # 알림톡 실패(채널 차단·카톡 미사용) 시 문자로 대체
+
+      # 2) 접수 1일 뒤 — 후속 안내 (지연: 30m, 2h, 1d, 1w)
+      - name: 후속안내
+        template: TP_FOLLOWUP_01
+        when: { delay: 1d }
+        variables: { 이름: "{{name|고객}}" }
+        text: |
+          {{name|고객}}님, 어제 신청하신 프로그램 관련 궁금한 점이 있으시면 언제든 답장 주세요.
+
+      # 3) 폼에 적힌 날짜 기준 D-1 18:00 — 예: '수업일' 항목이 2026-09-20 이면 09-19 18:00 발송
+      - name: 하루전리마인드
+        template: TP_REMIND_01
+        when: { field_at: { field: 수업일, days: -1, time: "18:00" } }
+        variables: { 이름: "{{name|고객}}", 일시: "{{수업일}} {{수업 시간|}}" }
+        text: |
+          {{name|고객}}님, 내일 {{수업일}} {{수업 시간|}} 수업이 있습니다. 잊지 말고 참석해 주세요!
+
+      # 4) 특정 답변에만 — 예: '결제 방법' 이 '무통장' 인 경우 계좌 안내
+      - name: 무통장안내
+        template: TP_BANK_01
+        when: { delay: 5m }
+        match: { "결제 방법": 무통장 }
+        variables: { 이름: "{{name|고객}}" }
+        text: |
+          {{name|고객}}님, 아래 계좌로 입금해 주시면 확인 후 안내드립니다.
+          국민은행 000-00-0000 (주)디에이블
+
+      # 다른 예: 특정 일시 고정 → when: { at: "2026-09-20 09:00" } / 다음 09:00 → when: { at_time: "09:00" }

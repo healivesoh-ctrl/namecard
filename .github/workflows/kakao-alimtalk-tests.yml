@@ -1,0 +1,23 @@
+name: 카카오 알림톡 테스트
+
+on:
+  push:
+    paths: ["kakao-alimtalk/**", ".github/workflows/kakao-alimtalk-tests.yml"]
+  pull_request:
+    paths: ["kakao-alimtalk/**"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 의존성 설치
+        working-directory: kakao-alimtalk
+        run: pip install -r requirements-dev.txt
+      - name: 테스트
+        working-directory: kakao-alimtalk
+        run: python -m pytest -q

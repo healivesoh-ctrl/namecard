@@ -3,6 +3,9 @@
 > 📣 **SNS 자동화**: 인스타그램·샤오홍슈·네이버블로그용 콘텐츠를 자동 생성·업로드하는
 > 시스템은 [`social-automation/`](social-automation/README.md) 에 있습니다.
 >
+> 📨 **설문폼 → 카카오 알림톡 자동 발송**: 구글폼 등으로 수집한 전화번호에 알림톡을
+> 자동 예약·발송하는 시스템은 [`kakao-alimtalk/`](kakao-alimtalk/README.md) 에 있습니다.
+>
 > 🎓 **수료증 자동 생성기**: 엑셀 명단으로 학생별 수료증 PNG 를 만드는 도구는
 > [`certificate.html`](certificate.html) 입니다. 자세한 사용법은 아래 [수료증 자동 생성기](#수료증-자동-생성기) 참고.
 
